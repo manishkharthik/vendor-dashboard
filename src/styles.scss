@@ -1,0 +1,10 @@
+.grid-container {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr); /* 2 per row */
+    gap: 1rem; /* spacing between items */
+    padding: 1rem;
+  }
+
+.grid-container > * {
+    padding: 0.5rem;
+  }
