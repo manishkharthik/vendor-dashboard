@@ -18,13 +18,18 @@ It combines an **Angular frontend** with an **Express + MongoDB backend** to vis
 
 To start a local development server:
 
-cd backend (Navigate to the backend directory)
+Navigate to the backend directory and start the server:
+```bash
+cd backend 
 npm run dev
+```
 
-// Split the terminal
-cd .. (navigate to the vendor-dashboard directory)
+Split the terminal and navigate back to the vendor-dashboard directory
+```bash
+cd .. 
 npm install
 npm start
+```
 
 Landing page can be found under src/app/app.ts
 
