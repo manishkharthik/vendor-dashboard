@@ -4,6 +4,9 @@ import { WeeklySalesComponent } from "./charts/weekly-sales/weekly-sales.compone
 import { SignupsMonthlyComponent } from "./charts/signups-monthly/signups-monthly.component";
 import { RevenueByTierComponent } from "./charts/revenue-by-tier/revenue-by-tier.component";
 import { BookingsByFacilityComponent } from './charts/bookings-by-facility/bookings-by-facility.component';
+import { AovByVisitComponent } from './charts/aov-by-visit/aov-by-visit.component';
+import { NewVsReturningMonthlyComponent } from './charts/new-vs-returning.ts/new-vs-returning.component';
+
 
 @Component({
   selector: 'app-root',
@@ -13,7 +16,9 @@ import { BookingsByFacilityComponent } from './charts/bookings-by-facility/booki
     WeeklySalesComponent,
     SignupsMonthlyComponent,
     RevenueByTierComponent,
-    BookingsByFacilityComponent
+    BookingsByFacilityComponent,
+    AovByVisitComponent,
+    NewVsReturningMonthlyComponent,
   ],
   template: `
     <div class="grid-container">
@@ -22,6 +27,8 @@ import { BookingsByFacilityComponent } from './charts/bookings-by-facility/booki
       <app-signups-monthly></app-signups-monthly>
       <app-revenue-by-tier></app-revenue-by-tier>
       <app-bookings-by-facility></app-bookings-by-facility>
+      <app-aov-by-visit></app-aov-by-visit>
+      <app-new-vs-returning-monthly></app-new-vs-returning-monthly>
     </div>
   `,
 })

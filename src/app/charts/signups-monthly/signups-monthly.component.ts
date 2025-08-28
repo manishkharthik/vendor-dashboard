@@ -1,4 +1,4 @@
-// fetches the data from the backend using /api/signupsMonthly, and renders Highcharts
+// fetches /api/signupsMonthly and renders Highcharts with a datetime x-axis
 import { Component, AfterViewInit, OnDestroy, ViewChild, ElementRef, inject } from '@angular/core';
 import * as Highcharts from 'highcharts';
 import { isPlatformBrowser } from '@angular/common';
@@ -20,61 +20,60 @@ export class SignupsMonthlyComponent implements AfterViewInit, OnDestroy {
   ngAfterViewInit(): void {
     if (!isPlatformBrowser(this.platformId)) return;
 
-    // 1) Create an empty chart
     this.chart = Highcharts.chart(this.container.nativeElement, {
       chart: { type: 'column' },
-      title: { text: "New Signup's 2025" }, // updated dynamically once we know the year
-      subtitle: { text: 'Source: Member signups' },
+      title: { text: 'New sign-ups' },
+      subtitle: { text: 'Source: Member sign-ups' },
+      credits: { enabled: false },
       xAxis: {
-        type: 'category',
-        labels: {
-          autoRotation: [-45, -90],
-          style: { fontSize: '13px', fontFamily: 'Verdana, sans-serif' }
-        }
+        type: 'datetime',
+        labels: { format: '{value:%b %Y}', style: { fontSize: '13px', fontFamily: 'Verdana, sans-serif' } }
       },
-      yAxis: { min: 0, title: { text: "Sign Up's" } },
+      yAxis: { min: 0, title: { text: 'Sign-ups' } },
       legend: { enabled: false },
-      tooltip: { pointFormat: "Sign Up's: <b>{point.y:.0f}</b>" },
+      tooltip: { xDateFormat: '%b %Y', pointFormat: 'Sign-ups: <b>{point.y:.0f}</b>' },
       series: [{
         type: 'column',
-        name: 'Signups',
-        colors: [
-          '#9b20d9', '#9215ac', '#861ec9', '#7a17e6', '#7010f9', '#691af3',
-          '#6225ed', '#5b30e7', '#533be1', '#4c46db', '#9215ac', '#9b20d9'
-        ],
+        name: 'Sign-ups',
         colorByPoint: true,
         groupPadding: 0,
-        data: [],
+        data: [] as Highcharts.PointOptionsObject[],
         dataLabels: {
-          enabled: true,
-          color: '#000000',
-          inside: false,
-          verticalAlign: 'bottom',
-          format: '{point.y:.0f}',
-          style: { fontSize: '13px', fontFamily: 'Verdana, sans-serif' }
+          enabled: true, color: '#000', inside: false, verticalAlign: 'bottom',
+          format: '{point.y:.0f}', style: { fontSize: '13px', fontFamily: 'Verdana, sans-serif' }
         }
       }]
     });
 
-    // 2) Fetch from backend and apply
-    const year = new Date().getFullYear(); // or hardcode / pass in
-    this.api.getSignupsMonthly(/* { year: String(year) } if you add params */).subscribe({
-      next: (res: ChartResponse) => {
+    this.api.getSignupsMonthly().subscribe({
+      next: (res: ChartResponse & { points?: [number, number][] }) => {
         if (!this.chart) return;
 
-        // Build [label, value] tuples to match your format
-        const points = (res.categories ?? []).map((label, i) => [
-          label.replace('’', "'"),                   // keep straight apostrophes like "Jan'25"
-          res.series?.[0]?.data?.[i] ?? 0
-        ]) as [string, number][];
+        // Prefer backend timestamps if provided
+        let points: [number, number][] = res.points ?? [];
 
-        // Update title with year if labels present
-        const guessedYear = /\d{2}$/.test(res.categories?.[0] ?? '')
-          ? 2000 + parseInt((res.categories![0]).slice(-2), 10)
-          : year;
-        this.chart.setTitle({ text: `New Signup's ${guessedYear}` });
+        // Fallback: derive timestamps from labels like "Jul 2025"
+        if (!points.length && Array.isArray(res.categories)) {
+          const vals = res.series?.[0]?.data ?? [];
+          points = res.categories.map((label, i) => {
+            const m = label.replace(/\u2019/g, "'").match(/^([A-Za-z]{3})\s+(\d{4})$/);
+            const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+            const ts = m ? Date.UTC(parseInt(m[2],10), months.indexOf(m[1]), 1) : NaN;
+            return [ts, Number(vals[i] ?? 0)] as [number, number];
+          }).filter(([ts]) => Number.isFinite(ts));
+        }
 
+        points.sort((a,b) => a[0] - b[0]);
         this.chart.series[0].setData(points, true);
+
+        // Title = single year or range
+        if (points.length) {
+          const y1 = new Date(points[0][0]).getUTCFullYear();
+          const y2 = new Date(points[points.length-1][0]).getUTCFullYear();
+          this.chart.setTitle({ text: y1 === y2 ? `New sign-ups ${y1}` : `New sign-ups ${y1}–${y2}` });
+        } else {
+          this.chart.setTitle({ text: 'New sign-ups' });
+        }
       },
       error: (err) => console.error('[signups-monthly] API error:', err)
     });

@@ -53,3 +53,11 @@ Details for charts created so far:
 5. Booking breakdown by facility
 - Backend: backend/routes/bookings-by-facility.ts
 - Frontend: src/app/charts/bookings-by-facility/bookings-by-facility.component.ts
+
+6. Mean AOV by number of visits
+- Backend: backend/routes/aov-by-visit.ts
+- Frontend: src/app/charts/aov-by-visit/aov-by-visit.component.ts
+
+7. Revenue from new VS returning customers
+- Backend: backend/routes/new-vs-returning.ts
+- Frontend: src/app/charts/new-vs-returning/new-vs-returning.component.ts

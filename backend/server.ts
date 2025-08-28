@@ -10,6 +10,8 @@ import signupsMonthlyRoute from "./routes/signupsMonthly";
 import revenueByTierRoute from "./routes/revenue-by-tier";
 import bookingsByFacilityRoute from "./routes/bookings-by-facility";
 import weeklyCancellationsRoute from "./routes/weeklyCancellations";
+import aovByVisitRoute from "./routes/aov-by-visit";
+import newVsReturningRoute from "./routes/new-vs-returning";
 
 dotenv.config({ path: "../.env" });
 dotenv.config({ path: resolve(process.cwd(), '.env') });
@@ -43,6 +45,8 @@ async function startServer() {
     app.use("/api/revenue-by-tier", revenueByTierRoute(db));
     app.use("/api/bookings-by-facility", bookingsByFacilityRoute(db));
     app.use("/api/weekly-cancellations", weeklyCancellationsRoute(db));
+    app.use("/api/aov-by-visit", aovByVisitRoute(db));
+    app.use("/api/new-vs-returning", newVsReturningRoute(db));
 
     app.listen(port, () => {
       console.log(`Backend running at http://localhost:${port}`);
@@ -54,3 +58,4 @@ async function startServer() {
 }
 
 startServer();
+
