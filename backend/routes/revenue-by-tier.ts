@@ -13,26 +13,20 @@ export default function revenueByTierRoute(db: any) {
   router.get('/', async (req, res) => {
     try {
       const visits = db.collection('member_visits');
-      const { vendorId, from, to } = req.query as {
-        vendorId?: string; from?: string; to?: string;
-      };
+      const { start, end } = res.locals.window;
 
-      // Vendor filter (ObjectId)
-      const rawVendor = (vendorId && vendorId.trim())
-        ? vendorId.trim()
-        : '67f773acc9504931fcc411ec';
+      // Vendor filter (ObjectId only, same as before)
+      const rawVendor =
+        (req.query.vendorId as string)?.trim() ?? "67f773acc9504931fcc411ec";
 
       let vendorObjId: ObjectId;
       try {
         vendorObjId = new ObjectId(rawVendor);
       } catch {
-        return res.status(400).json({ error: 'Invalid vendorId (expected ObjectId hex)' });
+        return res
+          .status(400)
+          .json({ error: "Invalid vendorId (expected ObjectId hex)" });
       }
-
-      const end = to ? new Date(to) : new Date();
-      const start = from
-        ? new Date(from)
-        : new Date(end.getTime() - 12 * 7 * 24 * 3600 * 1000);
 
       const match = {
         vendorId: vendorObjId,
@@ -69,8 +63,9 @@ export default function revenueByTierRoute(db: any) {
       const rows = (await visits.aggregate(pipeline).toArray()) as TierRow[];
 
       return res.json({
+        window: { start, end },
         categories: rows.map((r) => r.tier),
-        series: [{ name: 'Revenue (SGD)', data: rows.map((r) => r.totalRevenue) }]
+        series: [{ name: "Revenue (SGD)", data: rows.map((r) => r.totalRevenue) }],
       });
     } catch (err: any) {
       console.error('revenue-by-tier error:', err?.message ?? err);

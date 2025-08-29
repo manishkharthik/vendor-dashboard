@@ -1,21 +1,30 @@
-// src/app/charts/new-vs-returning-monthly.component.ts
+// src/app/charts/new-vs-returning-weekly.component.ts
 import { Component, AfterViewInit, OnDestroy, ViewChild, ElementRef, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import * as Highcharts from 'highcharts';
 import { PLATFORM_ID } from '@angular/core';
 import { isPlatformBrowser } from '@angular/common';
 
-type FRMonthlyResp = {
-  categories: string[];
-  series: { name: string; data: number[] }[];
+type FRWeeklyRow = {
+  label: string;            // "Week of 23 Jun 2025"
+  firstCount: number;
+  returningCount: number;
+  // (backend also returns pctFirst/pctReturning, totals, etc., but we don't need them here)
+};
+type FRWeeklyResp = {
+  window?: { start: string; end: string; tz: string };
+  categories: string[];     // weekly labels, same order as rows
+  rows: FRWeeklyRow[];
+  // series may also be present, but we'll prefer rows->counts for percent stacking
+  series?: { name: string; data: number[] }[];
 };
 
 @Component({
-  selector: 'app-new-vs-returning-monthly',
+  selector: 'app-new-vs-returning-weekly',
   standalone: true,
   template: `<div #container style="width:100%; height:420px;"></div>`
 })
-export class NewVsReturningMonthlyComponent implements AfterViewInit, OnDestroy {
+export class NewVsReturningWeeklyComponent implements AfterViewInit, OnDestroy {
   @ViewChild('container', { static: true }) container!: ElementRef<HTMLDivElement>;
   private chart?: Highcharts.Chart;
   private http = inject(HttpClient);
@@ -24,72 +33,72 @@ export class NewVsReturningMonthlyComponent implements AfterViewInit, OnDestroy 
   ngAfterViewInit(): void {
     if (!isPlatformBrowser(this.platformId)) return;
 
-    // 1) Create the empty stacked-percent chart shell
+    // 1) Create stacked-percent chart shell (Highcharts will compute % from counts)
     this.chart = Highcharts.chart(this.container.nativeElement, {
       chart: { type: 'column' },
-      title: { text: `New vs Returning Customers` },
-      subtitle: { text: 'Source: CRM Table' },
-      xAxis: { categories: [] },
-      yAxis: { min: 0, title: { text: 'Percentage (%)' } },
+      title: { text: 'New vs Returning Customers (weekly)' },
+      subtitle: { text: 'Source: Member visits' },
+      credits: { enabled: false },
+      xAxis: { categories: [], labels: { rotation: -35 } },
+      yAxis: { min: 0, title: { text: 'Percentage of revenue (%)' } },
       legend: { align: 'center', verticalAlign: 'bottom' },
       tooltip: {
         shared: true,
         useHTML: true,
-        headerFormat: '<b>For the month of {point.key}</b><br/>',
+        headerFormat: '<b>{point.key}</b><br/>', // week label
         pointFormat:
-          `<span style="color:{series.color}">\u25CF {series.name}</span>: `
-          + `<b>${'{point.y:,.2f}'}</b> ({point.percentage:.0f}%)<br/>`
+          `<span style="color:{series.color}">● {series.name}</span>: `
+          + `<b>{point.y:,.0f}</b> ({point.percentage:.0f}%)<br/>`
       },
       plotOptions: {
         column: {
           stacking: 'percent',
           dataLabels: {
             enabled: true,
+            // hide labels when computed percentage is 0
+            filter: { property: 'percentage', operator: '>', value: 0 },
             format: '{point.percentage:.0f}%',
             style: { textOutline: 'none', fontWeight: 'bold' }
           }
         }
       },
-      // nice two-color palette like your screenshot
       colors: ['#1EB7FF', '#5A38D6'],
       series: [
-        { type: 'column', name: 'New',       data: [] },
-        { type: 'column', name: 'Returning', data: [] }
+        { type: 'column', name: 'First-time', data: [] },
+        { type: 'column', name: 'Returning',  data: [] }
       ]
-    });
+    } as Highcharts.Options);
 
-    // 2) Fetch backend and plug in
-    this.http.get<FRMonthlyResp>('/api/new-vs-returning', {
-      params: { step: 'fr-monthly' }
-    }).subscribe({
-      next: (res) => {
-        if (!this.chart) return;
+    // 2) Fetch weekly data
+    this.http.get<FRWeeklyResp>('/api/new-vs-returning', { params: { step: 'fr-weekly' } })
+      .subscribe({
+        next: (res) => {
+          if (!this.chart) return;
+          let cats = Array.isArray(res.categories) ? res.categories : (res.rows ?? []).map(r => r.label);
 
-        const cats = res.categories ?? [];
-        const newIdx = (res.series || []).findIndex(s => /first|new/i.test(s.name));
-        const retIdx = (res.series || []).findIndex(s => /return/i.test(s.name));
+          // use COUNTS for percent stacking
+          const first = (res.series?.find(s => /first/i.test(s.name))?.data)
+            ?? (res.rows ?? []).map(r => Number(r.firstCount || 0));
+          const ret   = (res.series?.find(s => /return/i.test(s.name))?.data)
+            ?? (res.rows ?? []).map(r => Number(r.returningCount || 0));
 
-        const newData = newIdx >= 0 ? res.series![newIdx].data : [];
-        const retData = retIdx >= 0 ? res.series![retIdx].data : [];
+          // keep lengths in sync
+          if (cats.length !== first.length || cats.length !== ret.length) {
+            const rows = res.rows ?? [];
+            cats.splice(0, cats.length, ...rows.map(r => r.label));
+          }
 
-        this.chart.update({
-          xAxis: { categories: cats },
-          series: [
-            { type: 'column', name: 'New',       data: newData },
-            { type: 'column', name: 'Returning', data: retData }
+          this.chart.update({
+            xAxis: { categories: cats },
+            series: [
+              { type: 'column', name: 'First-time', data: first },
+              { type: 'column', name: 'Returning',  data: ret }
           ]
-        }, true, true);
-
-        // Optional: title suffix like “Q3 ’25” from first/last categories
-        if (cats.length) {
-          const t = this.chart.options.title?.text || 'New vs Returning Shoppers';
-          this.chart.setTitle({ text: t });
-        }
-      },
-      error: (err) => console.error('[fr-monthly] API error:', err)
-    });
-  }
-
+          }, true, true);
+        },
+        error: (err) => console.error('[fr-weekly] API error:', err)
+      });
+    }
   ngOnDestroy(): void {
     this.chart?.destroy();
   }

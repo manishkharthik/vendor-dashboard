@@ -6,46 +6,65 @@ export default function aovByVisitRoute(db: any) {
 
   router.get("/", async (req, res) => {
     try {
-      const users = db.collection("users");
       const step = (req.query.step as string) || "";
 
       if (step === "by-actual") {
         const vendor = (req.query.vendorId as string)?.trim() || "67f773acc9504931fcc411ec";
+        const { start, end } = res.locals.window; // ✅ time window [start, end)
 
         const rows = await db.collection("users").aggregate([
           // 1) explode vendor tiers & filter by vendor
           { $unwind: { path: "$userLoyaltyTier", preserveNullAndEmptyArrays: false } },
           { $match: { "userLoyaltyTier.vendorId": vendor } },
 
-          // 2) obtain the users who have visited (if totalVisits is not undefined)
-          { $set: {
-              _mdj: { $convert: { input: "$userLoyaltyTier.memberDateJoined", to: "date", onError: null, onNull: null } },
-              _visitsRaw: "$userLoyaltyTier.totalVisits"
+          // 2) keep useful fields; DO NOT drop _id (needed for $lookup)
+          {
+            $addFields: {
+              _mdj: {
+                $convert: {
+                  input: "$userLoyaltyTier.memberDateJoined",
+                  to: "date",
+                  onError: null,
+                  onNull: null
+                }
+              },
+              totalVisitsStored: "$userLoyaltyTier.totalVisits"
             }
           },
-          { $project: { totalVisits: { $convert: { input: "$totalVisitsStored", to: "int", onError: null, onNull: null } } } },
+          {
+            $addFields: {
+              totalVisits: {
+                $convert: { input: "$totalVisitsStored", to: "int", onError: null, onNull: null }
+              }
+            }
+          },
 
-          // 3) lookup user spending in member_visits
+          // 3) lookup user spending in member_visits, filtered by time window
           {
             $lookup: {
               from: "member_visits",
-              let: { uid: "$_id" },
+              let: { uid: "$_id", start: start, end: end },
               pipeline: [
                 {
                   $match: {
                     $expr: {
-                      $or: [
-                        { $eq: ["$memberId", "$$uid"] }, 
+                      $and: [
+                        { $eq: ["$memberId", "$$uid"] },
+                        { $eq: [{ $type: "$visitDate" }, "date"] },
+                        { $gte: ["$visitDate", "$$start"] }, // ← window
+                        { $lt:  ["$visitDate", "$$end"] }    // ← window
                       ]
                     }
                   }
                 },
-                { $set: {
+                {
+                  $set: {
                     _spent: { $toDouble: { $ifNull: ["$amountSpent", 0] } },
                     _saved: { $toDouble: { $ifNull: ["$amountSaved", 0] } }
                   }
                 },
-                { $group: {
+                {
+                  $group: {
                     _id: null,
                     netSpend: { $sum: { $subtract: ["$_spent", "$_saved"] } },
                     actualVisits: { $sum: 1 }
@@ -56,28 +75,27 @@ export default function aovByVisitRoute(db: any) {
             }
           },
 
-          // 4) Calculate each users AOV = netSpend / visits
-          { $set: {
-              netSpend: { $ifNull: [ { $first: "$mv.netSpend" }, 0 ] },
-              actualVisits: { $ifNull: [ { $first: "$mv.actualVisits" }, 0 ] }
+          // 4) Calculate per-user AOV = netSpend / actualVisits
+          {
+            $addFields: {
+              netSpend: { $ifNull: [{ $first: "$mv.netSpend" }, 0] },
+              actualVisits: { $ifNull: [{ $first: "$mv.actualVisits" }, 0] }
             }
           },
-          { $set: {
+          {
+            $addFields: {
               aov: {
-                $cond: [
-                  { $gt: ["$actualVisits", 0] },
-                  { $divide: ["$netSpend", "$actualVisits"] },
-                  null
-                ]
+                $cond: [{ $gt: ["$actualVisits", 0] }, { $divide: ["$netSpend", "$actualVisits"] }, null]
               }
             }
           },
 
-          // 5) Group by number of visits 
-          { $group: {
+          // 5) Group by number of visits (actual, in-window)
+          {
+            $group: {
               _id: "$actualVisits",
               users: { $sum: 1 },
-              meanAOV: { $avg: "$aov" },          
+              meanAOV: { $avg: "$aov" },
               sumNet: { $sum: "$netSpend" },
               sumVisits: { $sum: "$actualVisits" }
             }
@@ -85,22 +103,27 @@ export default function aovByVisitRoute(db: any) {
 
           // 6) tidy
           { $sort: { _id: 1 } },
-          { $project: {
+          {
+            $project: {
               _id: 0,
               actualVisits: "$_id",
               users: 1,
               meanAOV: { $round: ["$meanAOV", 2] },
-              weightedAOV: { $round: ["$weightedAOV", 2] },
+              weightedAOV: {
+                $cond: [{ $gt: ["$sumVisits", 0] }, { $round: [{ $divide: ["$sumNet", "$sumVisits"] }, 2] }, null]
+              },
               sumNet: { $round: ["$sumNet", 2] },
               sumVisits: 1
             }
           }
         ]).toArray();
-        return res.json({ rows });
+
+        return res.json({ window: res.locals.window, rows });
       }
 
-      return res.status(400).json({ error: "Add ?step=users-spend to fetch per-user net spending (step 2)." });
-
+      return res.status(400).json({
+        error: "Add ?step=by-actual to compute AOV by actual visits within the time window."
+      });
     } catch (err: any) {
       console.error("[aov-by-visit] error:", err?.message ?? err, err?.stack ?? "");
       return res.status(500).json({ error: "Failed in aov-by-visit route" });

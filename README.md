@@ -32,6 +32,9 @@ npm start
 ```
 
 Landing page can be found under src/app/app.ts
+Time period for data displayed (total of 8 weeks): 
+- Start: Mon, 16 Jun 2025 00:00 (+08:00)
+- End (exclusive): Mon, 11 Aug 2025 00:00 (+08:00)
 
 Details for charts created so far:
 1. Weekly Booking Data

@@ -10,28 +10,15 @@ export default function weeklyBookingsRoute(db: any) {
   router.get("/", async (req, res) => {
     try {
       const users = db.collection("users");
-      const { vendorId, from, to } = req.query as {
-        vendorId?: string;
-        from?: string;
-        to?: string;
-      };
+      const { start, end, tz } = res.locals.window;
 
-      // Treat vendorId as the serviceId we match in users.bookings.serviceId
-      const rawVendor =
-        (vendorId && vendorId.trim()) || "67f773acc9504931fcc411ec";
-
+      const vendorIdParam = (req.query.vendorId as string)?.trim() || "67f773acc9504931fcc411ec";
       let vendorObjId: ObjectId | null = null;
       try {
-        vendorObjId = new ObjectId(rawVendor);
+        vendorObjId = new ObjectId(vendorIdParam);
       } catch {
         /* keep null so we also match string ids */
       }
-
-      // default to last 12 weeks if no range given
-      const end = to ? new Date(to) : new Date();
-      const start = from
-        ? new Date(from)
-        : new Date(end.getTime() - 12 * 7 * 24 * 3600 * 1000);
 
       const pipeline: any[] = [
         // explode each user's bookings
@@ -43,29 +30,47 @@ export default function weeklyBookingsRoute(db: any) {
             $expr: {
               $or: [
                 ...(vendorObjId ? [{ $eq: ["$bookings.serviceId", vendorObjId] }] : []),
-                { $eq: ["$bookings.serviceId", rawVendor] },
-                { $eq: [{ $toString: "$bookings.serviceId" }, rawVendor] }
+                { $eq: ["$bookings.serviceId", vendorIdParam] },
+                { $eq: [{ $toString: "$bookings.serviceId" }, vendorIdParam] }
               ]
             }
           }
         },
 
-        // normalize startTime to a Date
+        // replace your $addFields with this more robust version
         {
           $addFields: {
             _dt: {
-              $cond: [
-                { $eq: [{ $type: "$bookings.startTime" }, "date"] },
-                "$bookings.startTime",
-                {
-                  $convert: {
-                    input: "$bookings.startTime",
-                    to: "date",
-                    onError: null,
-                    onNull: null
+              $switch: {
+                branches: [
+                  { // already a BSON Date
+                    case: { $eq: [{ $type: "$bookings.startTime" }, "date"] },
+                    then: "$bookings.startTime"
+                  },
+                  { // ISO string (assume local SGT if no offset in string)
+                    case: { $eq: [{ $type: "$bookings.startTime" }, "string"] },
+                    then: {
+                      $let: {
+                        vars: { s: "$bookings.startTime" },
+                        in: {
+                          $cond: [
+                            // if string already has a timezone (+/- or Z), let Mongo parse it
+                            { $regexMatch: { input: "$$s", regex: /[zZ]|[+\-]\d{2}:\d{2}$/ } },
+                            { $toDate: "$$s" },
+                            // otherwise assume Asia/Singapore
+                            { $dateFromString: { dateString: "$$s", timezone: tz } }
+                          ]
+                        }
+                      }
+                    }
+                  },
+                  { // numeric epoch (ms)
+                    case: { $in: [{ $type: "$bookings.startTime" }, ["int", "long", "decimal"] ] },
+                    then: { $toDate: "$bookings.startTime" }
                   }
-                }
-              ]
+                ],
+                default: null
+              }
             }
           }
         },
@@ -81,13 +86,15 @@ export default function weeklyBookingsRoute(db: any) {
                 $dateTrunc: {
                   date: "$_dt",
                   unit: "week",
-                  timezone: "Asia/Singapore"
+                  timezone: "Asia/Singapore",
+                  startOfWeek: "Mon",
                 }
               }
             },
             bookings: { $sum: 1 }
           }
         },
+        
         { $sort: { "_id.weekStart": 1 } },
 
         // format for chart
@@ -109,6 +116,7 @@ export default function weeklyBookingsRoute(db: any) {
       const rows = (await users.aggregate(pipeline).toArray()) as WeeklyRow[];
 
       res.json({
+        window: { start, end, tz },
         categories: rows.map((r: WeeklyRow) => r.label),
         series: [{ name: "Total Bookings", data: rows.map((r: WeeklyRow) => r.count) }]
       });
@@ -120,4 +128,3 @@ export default function weeklyBookingsRoute(db: any) {
 
   return router;
 }
-

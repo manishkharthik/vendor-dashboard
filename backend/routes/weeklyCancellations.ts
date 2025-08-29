@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { ObjectId } from "mongodb";
+import { count } from "node:console";
 
 type CancelRow = { label: string; count: number };
 
@@ -9,25 +10,15 @@ export default function weeklyCancellationsRoute(db: any) {
   router.get("/", async (req, res) => {
     try {
       const users = db.collection("users");
-      const { vendorId, from, to } = req.query as {
-        vendorId?: string;
-        from?: string;
-        to?: string;
-      };
+      const { start, end, tz } = res.locals.window;
 
-      // Treat vendorId as the serviceId we match in users.bookings.serviceId
-      const rawVendor = (vendorId && vendorId.trim())
-        ? vendorId.trim()
-        : "67f773acc9504931fcc411ec";
-
+      const vendorIdParam = (req.query.vendorId as string)?.trim() || "67f773acc9504931fcc411ec";
       let vendorObjId: ObjectId | null = null;
-      try { vendorObjId = new ObjectId(rawVendor); } catch { /* keep null */ }
-
-      // Optional window: default last 12 weeks, like your other routes
-      const end = to ? new Date(to) : new Date();
-      const start = from
-        ? new Date(from)
-        : new Date(end.getTime() - 12 * 7 * 24 * 3600 * 1000);
+      try {
+        vendorObjId = new ObjectId(vendorIdParam);
+      } catch {
+        /* keep null so we also match string ids */
+      }
 
       const pipeline: any[] = [
         // 1) Explode each user's bookings
@@ -41,8 +32,8 @@ export default function weeklyCancellationsRoute(db: any) {
                 $expr: {
                   $or: [
                     ...(vendorObjId ? [{ $eq: ["$bookings.serviceId", vendorObjId] }] : []),
-                    { $eq: ["$bookings.serviceId", rawVendor] },
-                    { $eq: [ { $toString: "$bookings.serviceId" }, rawVendor ] }
+                    { $eq: ["$bookings.serviceId", vendorIdParam] },
+                    { $eq: [ { $toString: "$bookings.serviceId" }, vendorIdParam ] }
                   ]
                 }
               },
@@ -82,7 +73,8 @@ export default function weeklyCancellationsRoute(db: any) {
                 $dateTrunc: {
                   date: "$_dt",
                   unit: "week",
-                  timezone: "Asia/Singapore"
+                  timezone: "Asia/Singapore",
+                  startOfWeek: "Mon",
                 }
               }
             },
@@ -95,15 +87,14 @@ export default function weeklyCancellationsRoute(db: any) {
         {
           $project: {
             _id: 0,
-            weekStart: "$_id.weekStart",
-            count: "$cancellations",
             label: {
               $dateToString: {
                 date: "$_id.weekStart",
                 format: "Week of %d %b %Y",
                 timezone: "Asia/Singapore"
               }
-            }
+            },
+            count: "$cancellations",
           }
         }
       ];

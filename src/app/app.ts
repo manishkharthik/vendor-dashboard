@@ -5,7 +5,7 @@ import { SignupsMonthlyComponent } from "./charts/signups-monthly/signups-monthl
 import { RevenueByTierComponent } from "./charts/revenue-by-tier/revenue-by-tier.component";
 import { BookingsByFacilityComponent } from './charts/bookings-by-facility/bookings-by-facility.component';
 import { AovByVisitComponent } from './charts/aov-by-visit/aov-by-visit.component';
-import { NewVsReturningMonthlyComponent } from './charts/new-vs-returning.ts/new-vs-returning.component';
+import { NewVsReturningWeeklyComponent } from './charts/new-vs-returning.ts/new-vs-returning.component';
 
 
 @Component({
@@ -18,7 +18,7 @@ import { NewVsReturningMonthlyComponent } from './charts/new-vs-returning.ts/new
     RevenueByTierComponent,
     BookingsByFacilityComponent,
     AovByVisitComponent,
-    NewVsReturningMonthlyComponent,
+    NewVsReturningWeeklyComponent,
   ],
   template: `
     <div class="grid-container">
@@ -28,7 +28,7 @@ import { NewVsReturningMonthlyComponent } from './charts/new-vs-returning.ts/new
       <app-revenue-by-tier></app-revenue-by-tier>
       <app-bookings-by-facility></app-bookings-by-facility>
       <app-aov-by-visit></app-aov-by-visit>
-      <app-new-vs-returning-monthly></app-new-vs-returning-monthly>
+      <app-new-vs-returning-weekly></app-new-vs-returning-weekly>
     </div>
   `,
 })

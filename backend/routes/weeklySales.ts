@@ -8,32 +8,24 @@ export default function weeklySalesRoute(db: any) {
   router.get("/", async (req, res) => {
     try {
       const visits = db.collection("member_visits"); 
-      const { vendorId, from, to } = req.query as {
-        vendorId?: string;
-        from?: string;
-        to?: string;
-      };
+      const { start, end, tz } = res.locals.window;
 
-      const end = to ? new Date(to) : new Date();
-      const start = from
-        ? new Date(from)
-        : new Date(end.getTime() - 12 * 7 * 24 * 3600 * 1000);
-
-      const rawVendor = (vendorId && vendorId.trim())
-        ? vendorId.trim()
-        : '67f773acc9504931fcc411ec';
+      const rawVendor =
+        (req.query.vendorId as string)?.trim() ?? "67f773acc9504931fcc411ec";
 
       let vendorObjId: ObjectId;
       try {
         vendorObjId = new ObjectId(rawVendor);
       } catch {
-        return res.status(400).json({ error: 'Invalid vendorId format (expected ObjectId)' });
+        return res
+          .status(400)
+          .json({ error: "Invalid vendorId format (expected ObjectId)" });
       }
 
       const match = {
-        vendorId: vendorObjId,                 
-        visitDate: { $gte: start, $lt: end }, 
-        $expr: { $eq: [{ $type: '$visitDate' }, 'date'] }
+        vendorId: vendorObjId,
+        visitDate: { $gte: start, $lt: end },
+        $expr: { $eq: [{ $type: "$visitDate" }, "date"] }
       };
 
       const pipeline = [
@@ -45,7 +37,8 @@ export default function weeklySalesRoute(db: any) {
                 $dateTrunc: {
                   date: "$visitDate",
                   unit: "week",
-                  timezone: "Asia/Singapore"
+                  timezone: tz,
+                  startOfWeek: "Mon",
                 }
               }
             },

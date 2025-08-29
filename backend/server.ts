@@ -4,6 +4,7 @@ import express from "express";
 import cors from "cors";
 import { MongoClient } from "mongodb";
 
+import { setFixedTimeWindow } from "./middleware/timeWindow";
 import weeklyBookingsRoute from "./routes/weeklyBookings";
 import weeklySalesRoute from "./routes/weeklySales";
 import signupsMonthlyRoute from "./routes/signupsMonthly";
@@ -13,6 +14,7 @@ import weeklyCancellationsRoute from "./routes/weeklyCancellations";
 import aovByVisitRoute from "./routes/aov-by-visit";
 import newVsReturningRoute from "./routes/new-vs-returning";
 
+
 dotenv.config({ path: "../.env" });
 dotenv.config({ path: resolve(process.cwd(), '.env') });
 
@@ -21,6 +23,8 @@ const port = process.env.PORT || 5050;
 
 app.use(cors());
 app.use(express.json());
+// Window available to all routes below
+app.use(setFixedTimeWindow); 
 
 const uri = process.env.MONGO_URI ?? '';
 if (!uri) {

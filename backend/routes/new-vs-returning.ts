@@ -7,12 +7,15 @@ export default function newVsReturningRoute(db: any) {
   router.get("/", async (req, res) => {
     try {
       const step = String(req.query.step || "");
-      if (step !== "fr-monthly") 
-        return res.status(400).json({ error: "Add ?step=fr-monthly" });
+      if (step !== "fr-weekly") 
+        return res.status(400).json({ error: "Add ?step=fr-weekly" });
 
       const usersCol  = db.collection("users");
       const visitsCol = db.collection("member_visits");
       const vendorId = "67f773acc9504931fcc411ec";
+      const vendorObj = new ObjectId(vendorId);
+
+      const { start, end, tz } = res.locals.window;
 
       // 1) Get userIds (ensure visited >= 1)
       const idsDoc = await usersCol.aggregate([
@@ -36,19 +39,19 @@ export default function newVsReturningRoute(db: any) {
 
       const userIds: ObjectId[] = idsDoc?.userIds ?? [];
       if (!userIds.length) {
-        return res.json({ rows: [], categories: [], series: [
-          { name: "First-time", data: [] },
-          { name: "Returning",  data: [] }
+        return res.json({
+          window: { start, end, tz },
+          rows: [],
+          categories: [],
+          series: [
+            { name: "First-time", data: [] },
+            { name: "Returning",  data: [] }
         ]});
       }
 
-      const tz = "Asia/Singapore";
-
       // 2) Member visits → label first vs returning PER MEMBER, then group by month
       const rows = await visitsCol.aggregate([
-        { $match: { memberId: { $in: userIds }, vendorId: new ObjectId(vendorId) } },
-
-        // Normalize
+        { $match: { memberId: { $in: userIds }, vendorId: vendorObj } },
         { $set: {
             _visit: { $convert: { input: "$visitDate", to: "date", onError: null, onNull: null } },
             _spent: { $toDouble: { $ifNull: ["$amountSpent", 0] } },
@@ -56,7 +59,6 @@ export default function newVsReturningRoute(db: any) {
         }},
         { $match: { _visit: { $ne: null } } },
         { $set: { _net: { $subtract: ["$_spent", "$_saved"] } } },
-
         { $set: {
             _sortKey: {
               $concat: [
@@ -72,24 +74,30 @@ export default function newVsReturningRoute(db: any) {
             output: { visitIndex: { $documentNumber: {} } }
           }
         },
+        { $match: { _visit: { $gte: start, $lt: end } } },
 
-        // Month bucket (SG timezone)
-        { $set: { month: { $dateTrunc: { date: "$_visit", unit: "month", timezone: tz } } } },
+        // Weekly bucket (Mon–Sun) in SGT
+        { $set: {
+            weekStart: {
+              $dateTrunc: { date: "$_visit", unit: "week", timezone: tz, startOfWeek: "Mon" }
+            }
+        }},
 
-        // Monthly rollup: first vs returning
+         // Weekly rollup
         {
           $group: {
-            _id: "$month",
-            firstTotal:     { $sum: { $cond: [{ $eq: ["$visitIndex", 1] }, "$_net", 0] } },
-            returningTotal: { $sum: { $cond: [{ $gt: ["$visitIndex", 1] }, "$_net", 0] } },
+            _id: "$weekStart",
             firstCount:     { $sum: { $cond: [{ $eq: ["$visitIndex", 1] }, 1, 0] } },
-            returningCount: { $sum: { $cond: [{ $gt: ["$visitIndex", 1] }, 1, 0] } }
+            returningCount: { $sum: { $cond: [{ $gt: ["$visitIndex", 1] }, 1, 0] } },
+            firstTotal:     { $sum: { $cond: [{ $eq: ["$visitIndex", 1] }, "$_net", 0] } },
+            returningTotal: { $sum: { $cond: [{ $gt: ["$visitIndex", 1] }, "$_net", 0] } }
           }
         },
         { $sort: { _id: 1 } },
         { $project: {
             _id: 0,
-            month: "$_id",
+            weekStart: "$_id",
+            label: { $dateToString: { date: "$_id", format: "Week of %d %b %Y", timezone: tz } },
             firstTotal:     { $round: ["$firstTotal", 2] },
             returningTotal: { $round: ["$returningTotal", 2] },
             firstCount: 1,
@@ -98,19 +106,14 @@ export default function newVsReturningRoute(db: any) {
       ]).toArray();
 
       // 3) Optional chart-friendly shape
-      const categories: string[] = [];
-      const firstSeries: number[] = [];
-      const returningSeries: number[] = [];
-      for (const r of rows) {
-        const d = new Date(r.month);
-        categories.push(d.toLocaleString("en-SG", { month: "short", year: "numeric", timeZone: tz }));
-        firstSeries.push(Number(r.firstTotal ?? 0));
-        returningSeries.push(Number(r.returningTotal ?? 0));
-      }
+      const categories = rows.map((r: any) => r.label);
+      const firstSeries = rows.map((r: any) => Number(r.firstCount || 0));
+      const returningSeries = rows.map((r: any) => Number(r.returningCount || 0));
 
       return res.json({
-        rows,                                   // [{ month, firstTotal, returningTotal, firstCount, returningCount }, ...]
-        categories,                             // ["Jul 2025", ...]
+        window: { start, end, tz },
+        rows,
+        categories,
         series: [
           { name: "First-time", data: firstSeries },
           { name: "Returning",  data: returningSeries }

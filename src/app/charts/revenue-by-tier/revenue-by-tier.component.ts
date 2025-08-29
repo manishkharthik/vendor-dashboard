@@ -57,8 +57,7 @@ export class RevenueByTierComponent implements AfterViewInit, OnDestroy {
         name: 'Revenue (SGD)',
         colorByPoint: true,
         colors: [
-          '#9b20d9', '#9215ac', '#861ec9', '#7a17e6', '#7010f9', '#691af3',
-          '#6225ed', '#5b30e7', '#533be1', '#4c46db', '#9215ac', '#9b20d9'
+          '#9b20d9', '#7010f9', '#691af3', '#533be1', '#4c46db', '#9215ac', '#9b20d9'
         ],
         groupPadding: 0.05,
         data: [],
