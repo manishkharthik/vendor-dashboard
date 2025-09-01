@@ -36,6 +36,8 @@ Time period for data displayed (total of 8 weeks):
 - Start: Mon, 16 Jun 2025 00:00 (+08:00)
 - End (exclusive): Mon, 11 Aug 2025 00:00 (+08:00)
 
+Summary of Vendor Metrics can be found under: src/app/charts/kpi-row/kpi-row.component.ts
+
 Details for charts created so far:
 1. Weekly Booking Data
 - Backend: backend/routes/weeklyBookings.ts backend/routes/weeklyCancellations.ts
@@ -61,6 +63,6 @@ Details for charts created so far:
 - Backend: backend/routes/aov-by-visit.ts
 - Frontend: src/app/charts/aov-by-visit/aov-by-visit.component.ts
 
-7. Revenue from new VS returning customers
+7. Number of visits from new VS returning customers
 - Backend: backend/routes/new-vs-returning.ts
-- Frontend: src/app/charts/new-vs-returning/new-vs-returning.component.ts
+- Frontend: src/app/charts/new-vs-returning-visits/new-vs-returning-visits.component.ts

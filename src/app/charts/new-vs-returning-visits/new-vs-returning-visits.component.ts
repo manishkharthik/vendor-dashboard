@@ -20,11 +20,11 @@ type FRWeeklyResp = {
 };
 
 @Component({
-  selector: 'app-new-vs-returning-weekly',
+  selector: 'app-new-vs-returning-visits',
   standalone: true,
   template: `<div #container style="width:100%; height:420px;"></div>`
 })
-export class NewVsReturningWeeklyComponent implements AfterViewInit, OnDestroy {
+export class NewVsReturningWeeklyVisitComponent implements AfterViewInit, OnDestroy {
   @ViewChild('container', { static: true }) container!: ElementRef<HTMLDivElement>;
   private chart?: Highcharts.Chart;
   private http = inject(HttpClient);
@@ -40,7 +40,7 @@ export class NewVsReturningWeeklyComponent implements AfterViewInit, OnDestroy {
       subtitle: { text: 'Source: Member visits' },
       credits: { enabled: false },
       xAxis: { categories: [], labels: { rotation: -35 } },
-      yAxis: { min: 0, title: { text: 'Percentage of revenue (%)' } },
+      yAxis: { min: 0, title: { text: 'Proportion of visits (%)' } },
       legend: { align: 'center', verticalAlign: 'bottom' },
       tooltip: {
         shared: true,

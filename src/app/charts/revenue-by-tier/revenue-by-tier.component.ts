@@ -31,7 +31,7 @@ export class RevenueByTierComponent implements AfterViewInit, OnDestroy {
     // 1) Chart shell (column by tier)
     this.chart = Highcharts.chart(this.container.nativeElement, {
       chart: { type: 'column' },
-      title: { text: 'Revenue by Loyalty Tier' },
+      title: { text: 'Sales by Loyalty Tier' },
       subtitle: { text: 'Source: Member Visits' },
       xAxis: {
         categories: [],
@@ -42,7 +42,7 @@ export class RevenueByTierComponent implements AfterViewInit, OnDestroy {
       },
       yAxis: { 
         min: 0, 
-        title: { text: 'Revenue (SGD)' },
+        title: { text: 'Sales (SGD)' },
         labels: {
           formatter: function () {
             return '$' + Highcharts.numberFormat(this.value as number, 0);
@@ -51,10 +51,10 @@ export class RevenueByTierComponent implements AfterViewInit, OnDestroy {
       },
 
       legend: { enabled: false },
-      tooltip: { pointFormat: 'Revenue: <b>${point.y:.2f}</b>' },
+      tooltip: { pointFormat: 'Sales: <b>${point.y:.2f}</b>' },
       series: [{
         type: 'column',
-        name: 'Revenue (SGD)',
+        name: 'Sales (SGD)',
         colorByPoint: true,
         colors: [
           '#9b20d9', '#7010f9', '#691af3', '#533be1', '#4c46db', '#9215ac', '#9b20d9'
