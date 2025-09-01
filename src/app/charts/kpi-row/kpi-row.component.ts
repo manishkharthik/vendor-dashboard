@@ -167,7 +167,7 @@ export class KpiRowComponent implements OnInit {
         const idx = data.reduce((best, n, i) => (n > data[best] ? i : best), 0);
         const topName = names[idx] ?? '—';
         const percent = (data[idx] / totalFac) * 100;
-        this.popularFacilityText = `${topName}: ${this.pct(percent)}%`;
+        this.popularFacilityText = `${topName}`;
       } else {
         this.popularFacilityText = '';
       }
