@@ -13,11 +13,10 @@ type WeeklySeriesResp = {
 export class KpiDataService {
   private http = inject(HttpClient);
 
-  /** helper */
   private sum = (arr: number[] = []) => arr.reduce((s, n) => s + (+n || 0), 0);
   private sumFirstSeries = (res: WeeklySeriesResp) => this.sum(res.series?.[0]?.data);
 
-  /** Total Signups (your `/api/signups-monthly` returns weekly buckets) */
+  // Total Signups
   readonly signupsTotal$: Observable<number | null> = this.http
     .get<WeeklySeriesResp>('/api/signups-monthly')
     .pipe(
@@ -26,7 +25,7 @@ export class KpiDataService {
       shareReplay({ bufferSize: 1, refCount: false })
     );
 
-  /** Total Bookings */
+  // Total Bookings
   readonly bookingsTotal$: Observable<number | null> = this.http
     .get<WeeklySeriesResp>('/api/weekly-bookings')
     .pipe(
@@ -35,7 +34,7 @@ export class KpiDataService {
       shareReplay({ bufferSize: 1, refCount: false })
     );
 
-  /** Total Visits (sum first-time + returning) */
+  // Total Visits
   readonly visitsTotal$: Observable<number | null> = this.http
     .get<WeeklySeriesResp>('/api/new-vs-returning', { params: { step: 'fr-weekly' } })
     .pipe(
@@ -44,9 +43,9 @@ export class KpiDataService {
       shareReplay({ bufferSize: 1, refCount: false })
     );
 
-  /** Total Sales (adjust endpoint if different) */
+  // Total Sales
   readonly salesTotal$: Observable<number | null> = this.http
-    .get<WeeklySeriesResp>('/api/weekly-sales') // <-- ensure this route exists
+    .get<WeeklySeriesResp>('/api/weekly-sales') 
     .pipe(
       map(res => this.sumFirstSeries(res)),
       catchError(err => { console.error('[KPI] sales error', err); return of(null); }),

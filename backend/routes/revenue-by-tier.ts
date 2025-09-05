@@ -1,4 +1,4 @@
-// returns revenue by tier from table "member visits"
+// Returns revenue by tier from table "member visits"
 import { Router } from 'express';
 import { ObjectId } from "mongodb";
 
@@ -15,7 +15,6 @@ export default function revenueByTierRoute(db: any) {
       const visits = db.collection('member_visits');
       const { start, end } = res.locals.window;
 
-      // Vendor filter (ObjectId only, same as before)
       const rawVendor =
         (req.query.vendorId as string)?.trim() ?? "67f773acc9504931fcc411ec";
 
@@ -35,7 +34,9 @@ export default function revenueByTierRoute(db: any) {
       };
 
       const pipeline = [
+        // 1 ) Match vendorId + visitDate in [start,end)
         { $match: match },
+        // 2) Group by tier, summing amountSpent
         {
           $group: {
             _id: { 

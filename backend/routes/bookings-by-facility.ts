@@ -1,3 +1,4 @@
+// Returns count of bookings per facility for a given vendor in a given time window
 import { Router } from "express";
 import { ObjectId } from "mongodb";
 
@@ -9,7 +10,7 @@ export default function bookingsByFacilityRoute(db: any) {
   router.get("/", async (req, res) => {
     try {
       const facilities = db.collection("facilities");
-      const { start, end, tz } = res.locals.window;        // ← use the window
+      const { start, end, tz } = res.locals.window;    
 
       const { vendorId } = req.query as { vendorId?: string };
       const rawVendor = (vendorId && vendorId.trim())
@@ -44,14 +45,14 @@ export default function bookingsByFacilityRoute(db: any) {
         { $match: { name: { $ne: "" } } },
 
 
-        // 2) Count bookings in users that reference this facility **and** fall in [start,end)
+        // 2) Count bookings in users that reference this facility and fall in [start,end)
         {
           $lookup: {
             from: "users",
             let: {
               fid: "$facilityId",
               fidStr: "$facilityIdStr",
-              start: start,   // JS Date literal captured into the pipeline
+              start: start,  
               end: end,
               tz: tz
             },
@@ -59,7 +60,6 @@ export default function bookingsByFacilityRoute(db: any) {
               { $project: { bookings: 1 } },
               { $unwind: "$bookings" },
 
-              // robustly parse bookings.startTime -> _dt (assume SGT if naive string)
               {
                 $addFields: {
                   _dt: {
@@ -88,7 +88,6 @@ export default function bookingsByFacilityRoute(db: any) {
                 }
               },
 
-              // facility match + time window [start, end)
               {
                 $match: {
                   $expr: {

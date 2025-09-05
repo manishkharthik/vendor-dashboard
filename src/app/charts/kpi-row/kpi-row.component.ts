@@ -1,4 +1,3 @@
-// src/app/kpi-row/kpi-row.component.ts
 import { Component, OnInit, ChangeDetectionStrategy, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { take, map, catchError } from 'rxjs/operators';
@@ -10,8 +9,8 @@ type WeeklySeriesResp = {
 };
 
 type ByFacilityResp = {
-  categories: string[];                    // facility names
-  series: { name: string; data: number[] }[]; // one series with counts per facility
+  categories: string[];               
+  series: { name: string; data: number[] }[]; 
 };
 
 @Component({
@@ -80,7 +79,6 @@ type ByFacilityResp = {
 export class KpiRowComponent implements OnInit {
   private http = inject(HttpClient);
 
-  // Render-ready strings (no pipes, no async, no flicker)
   signupsText = '';
   bookingsText = '';
   visitsText   = '';
@@ -107,7 +105,6 @@ export class KpiRowComponent implements OnInit {
   }
 
   ngOnInit() {
-    // Optional: show last-known values instantly
     const cached = this.readCache();
     if (cached) {
       ({
@@ -172,7 +169,7 @@ export class KpiRowComponent implements OnInit {
         this.popularFacilityText = '';
       }
 
-      // Placeholders (leave as em-dash or set something if you like)
+      // Placeholders
       this.placeholderAText = '';
       this.placeholderBText = '';
 

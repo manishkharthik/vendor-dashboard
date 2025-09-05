@@ -1,4 +1,3 @@
-// fetches the data from the backend using /api/weeklySales, and renders Highcharts
 import { Component, AfterViewInit, OnDestroy, ViewChild, ElementRef, inject } from '@angular/core';
 import * as Highcharts from 'highcharts';
 import { isPlatformBrowser } from '@angular/common';

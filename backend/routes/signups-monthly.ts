@@ -1,4 +1,4 @@
-// returns monthly signups data from table "users"
+// Returns monthly signups data from table "users"
 import { Router } from "express";
 import { ObjectId } from "mongodb";
 
@@ -11,21 +11,19 @@ export default function signupsMonthlyRoute(db: any) {
 
       const { start, end, tz } = res.locals.window;
 
-      // vendorId handling (accepts string or ObjectId in DB)
       const vendorIdParam = (req.query.vendorId as string)?.trim() ?? "67f773acc9504931fcc411ec";
       let vendorObjId: ObjectId | null = null;
       try { 
         vendorObjId = new ObjectId(vendorIdParam); 
       } catch {
-        // leave as empty
       }
 
       const pipeline = [
-        // 0) explode the array so each tier entry is its own doc
+        // 1) explode the array so each tier entry is its own doc
         { $unwind: { path: "$userLoyaltyTier", preserveNullAndEmptyArrays: false } },
-        // 1) vendor filter (string)
+        // 2) vendor filter (string)
         { $match: { "userLoyaltyTier.vendorId": vendorIdParam } },
-        // 2) convert string -> Date (robust)
+        // 3) convert string -> Date 
         { $set: {
             _mdj: {
               $convert: { 
@@ -36,9 +34,9 @@ export default function signupsMonthlyRoute(db: any) {
             }
           }
         },
-        // 3) window on the converted date
+        // 4) Window on the converted date
         { $match: { _mdj: { $ne: null, $gte: start, $lt: end } } },
-        // 4) Weekly buckets (Mon–Sun) in the same timezone
+        // 5) Weekly buckets (Mon–Sun) in the same timezone
         {
           $group: {
             _id: {
@@ -50,7 +48,7 @@ export default function signupsMonthlyRoute(db: any) {
           }
         },
         { $sort: { "_id.weekStart": 1 } },
-        // 5) tidy output 
+        // 6) tidy output 
         {
           $project: {
             _id: 0,

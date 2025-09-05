@@ -1,3 +1,4 @@
+// Returns count of new vs returning members per week
 import { Router } from "express";
 import { ObjectId } from "mongodb";
 
@@ -76,14 +77,12 @@ export default function newVsReturningRoute(db: any) {
         },
         { $match: { _visit: { $gte: start, $lt: end } } },
 
-        // Weekly bucket (Mon–Sun) in SGT
         { $set: {
             weekStart: {
               $dateTrunc: { date: "$_visit", unit: "week", timezone: tz, startOfWeek: "Mon" }
             }
         }},
 
-         // Weekly rollup
         {
           $group: {
             _id: "$weekStart",
@@ -105,7 +104,7 @@ export default function newVsReturningRoute(db: any) {
         }}
       ]).toArray();
 
-      // 3) Optional chart-friendly shape
+      // 3) Chart-friendly shape
       const categories = rows.map((r: any) => r.label);
       const firstSeries = rows.map((r: any) => Number(r.firstCount || 0));
       const returningSeries = rows.map((r: any) => Number(r.returningCount || 0));

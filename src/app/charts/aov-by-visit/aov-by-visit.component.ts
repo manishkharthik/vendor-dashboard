@@ -7,13 +7,12 @@ import { HttpClient, HttpParams } from '@angular/common/http';
 type ByActualRow = {
   actualVisits: number;
   users: number;
-  meanAOV: number;       // per-user average AOV in this bucket
-  weightedAOV?: number;  // optional (sumNet / sumVisits)
+  meanAOV: number;      
+  weightedAOV?: number;  
 };
 
 type ByActualResponse = {
   rows: ByActualRow[];
-  // (your backend may also return categories/series; we’ll build from rows)
 };
 
 @Component({
@@ -21,10 +20,11 @@ type ByActualResponse = {
   standalone: true,
   template: `<div #container style="width:100%; height:400px;"></div>`
 })
+
 export class AovByVisitComponent implements AfterViewInit, OnDestroy {
   @Input() vendorId: string = '67f773acc9504931fcc411ec';
-  @Input() from?: string; // optional ISO
-  @Input() to?: string;   // optional ISO
+  @Input() from?: string; 
+  @Input() to?: string; 
 
   @ViewChild('container', { static: true }) container!: ElementRef<HTMLDivElement>;
   private chart?: Highcharts.Chart;

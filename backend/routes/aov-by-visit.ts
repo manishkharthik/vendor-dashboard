@@ -1,4 +1,4 @@
-// routes/aov-by-visit.ts
+// Returns average order value (AOV) by number of actual visits within a time window.
 import { Router } from "express";
 
 export default function aovByVisitRoute(db: any) {
@@ -10,7 +10,7 @@ export default function aovByVisitRoute(db: any) {
 
       if (step === "by-actual") {
         const vendor = (req.query.vendorId as string)?.trim() || "67f773acc9504931fcc411ec";
-        const { start, end } = res.locals.window; // ✅ time window [start, end)
+        const { start, end } = res.locals.window;
 
         const rows = await db.collection("users").aggregate([
           // 1) explode vendor tiers & filter by vendor
@@ -51,8 +51,8 @@ export default function aovByVisitRoute(db: any) {
                       $and: [
                         { $eq: ["$memberId", "$$uid"] },
                         { $eq: [{ $type: "$visitDate" }, "date"] },
-                        { $gte: ["$visitDate", "$$start"] }, // ← window
-                        { $lt:  ["$visitDate", "$$end"] }    // ← window
+                        { $gte: ["$visitDate", "$$start"] },
+                        { $lt:  ["$visitDate", "$$end"] }   
                       ]
                     }
                   }

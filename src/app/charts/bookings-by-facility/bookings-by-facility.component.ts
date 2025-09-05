@@ -27,7 +27,7 @@ export class BookingsByFacilityComponent implements AfterViewInit, OnDestroy {
   ngAfterViewInit(): void {
     if (!isPlatformBrowser(this.platformId)) return;
 
-    // 1) Chart shell (no center label, just %)
+    // 1) Chart shell 
     const options: Highcharts.Options = {
       chart: { type: 'pie' },
       title: { text: this.title },
@@ -54,7 +54,6 @@ export class BookingsByFacilityComponent implements AfterViewInit, OnDestroy {
         } as Highcharts.PlotPieOptions
       },
 
-      // optional palette close to your screenshot (blue, purple, green, orange)
       colors: ['#2DA3FF', '#5B5CE2', '#08D474', '#FF7A45', '#FFC53D', '#13C2C2']
     };
 

@@ -29,7 +29,9 @@ export default function weeklySalesRoute(db: any) {
       };
 
       const pipeline = [
+        // 1. Filter by vendorId and date range
         { $match: match },
+        // 2. Group by week and sum the amountSpent
         {
           $group: {
             _id: {
@@ -45,7 +47,9 @@ export default function weeklySalesRoute(db: any) {
             totalSales: { $sum: { $ifNull: ["$amountSpent", 0] } }
           }
         },
+        // 3. Sort by weekStart ascending
         { $sort: { "_id.weekStart": 1 } },
+        // 4. Project the desired fields
         {
           $project: {
             _id: 0,

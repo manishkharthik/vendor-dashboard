@@ -1,4 +1,4 @@
-// Count weekly bookings from users.bookings (no isActive filter)
+// Return weekly bookings from users.bookings 
 import { Router } from "express";
 import { ObjectId } from "mongodb";
 
@@ -17,14 +17,14 @@ export default function weeklyBookingsRoute(db: any) {
       try {
         vendorObjId = new ObjectId(vendorIdParam);
       } catch {
-        /* keep null so we also match string ids */
+        
       }
 
       const pipeline: any[] = [
-        // explode each user's bookings
+        // 1. Explode each user's bookings
         { $unwind: "$bookings" },
 
-        // serviceId == vendorId (support ObjectId and string)
+        // 2. Match serviceId to vendorId 
         {
           $match: {
             $expr: {
@@ -37,34 +37,32 @@ export default function weeklyBookingsRoute(db: any) {
           }
         },
 
-        // replace your $addFields with this more robust version
+        // 3. Normalize startTime to a BSON Date in _dt
         {
           $addFields: {
             _dt: {
               $switch: {
                 branches: [
-                  { // already a BSON Date
+                  { 
                     case: { $eq: [{ $type: "$bookings.startTime" }, "date"] },
                     then: "$bookings.startTime"
                   },
-                  { // ISO string (assume local SGT if no offset in string)
+                  { 
                     case: { $eq: [{ $type: "$bookings.startTime" }, "string"] },
                     then: {
                       $let: {
                         vars: { s: "$bookings.startTime" },
                         in: {
                           $cond: [
-                            // if string already has a timezone (+/- or Z), let Mongo parse it
                             { $regexMatch: { input: "$$s", regex: /[zZ]|[+\-]\d{2}:\d{2}$/ } },
                             { $toDate: "$$s" },
-                            // otherwise assume Asia/Singapore
                             { $dateFromString: { dateString: "$$s", timezone: tz } }
                           ]
                         }
                       }
                     }
                   },
-                  { // numeric epoch (ms)
+                  {
                     case: { $in: [{ $type: "$bookings.startTime" }, ["int", "long", "decimal"] ] },
                     then: { $toDate: "$bookings.startTime" }
                   }
@@ -75,10 +73,10 @@ export default function weeklyBookingsRoute(db: any) {
           }
         },
 
-        // require valid date within window
+        // 4. Match to the date range
         { $match: { _dt: { $ne: null, $gte: start, $lt: end } } },
 
-        // group by week (Singapore tz)
+        // 5. Group by week 
         {
           $group: {
             _id: {
@@ -97,7 +95,7 @@ export default function weeklyBookingsRoute(db: any) {
         
         { $sort: { "_id.weekStart": 1 } },
 
-        // format for chart
+        // 6. Format the output
         {
           $project: {
             _id: 0,

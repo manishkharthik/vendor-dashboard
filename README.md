@@ -40,7 +40,7 @@ Summary of Vendor Metrics can be found under: src/app/charts/kpi-row/kpi-row.com
 
 Details for charts created so far:
 1. Weekly Booking Data
-- Backend: backend/routes/weeklyBookings.ts backend/routes/weeklyCancellations.ts
+- Backend: backend/routes/weekly-bookings.ts & backend/routes/weekly-cancellations.ts
 - Frontend: src/app/charts/weekly-bookings/weekly-bookings.component.ts
 
 2. Weekly Sales

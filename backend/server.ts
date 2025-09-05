@@ -4,13 +4,13 @@ import express from "express";
 import cors from "cors";
 import { MongoClient } from "mongodb";
 
-import { setFixedTimeWindow } from "./middleware/timeWindow";
-import weeklyBookingsRoute from "./routes/weeklyBookings";
-import weeklySalesRoute from "./routes/weeklySales";
-import signupsMonthlyRoute from "./routes/signupsMonthly";
+import { setFixedTimeWindow } from "./middleware/time-window";
+import weeklyBookingsRoute from "./routes/weekly-bookings";
+import weeklySalesRoute from "./routes/weekly-sales";
+import signupsMonthlyRoute from "./routes/signups-monthly";
 import revenueByTierRoute from "./routes/revenue-by-tier";
 import bookingsByFacilityRoute from "./routes/bookings-by-facility";
-import weeklyCancellationsRoute from "./routes/weeklyCancellations";
+import weeklyCancellationsRoute from "./routes/weekly-cancellations";
 import aovByVisitRoute from "./routes/aov-by-visit";
 import newVsReturningRoute from "./routes/new-vs-returning";
 

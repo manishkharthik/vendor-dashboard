@@ -15,9 +15,8 @@ type TierRevenueResponse = {
   template: `<div #container style="width:100%; height:400px;"></div>`
 })
 export class RevenueByTierComponent implements AfterViewInit, OnDestroy {
-  @Input() vendorId: string = '67f773acc9504931fcc411ec'; // default as requested
-  // Optional: allow date range inputs too:
-  @Input() from?: string; // ISO strings e.g. '2025-01-01T00:00:00Z'
+  @Input() vendorId: string = '67f773acc9504931fcc411ec'; 
+  @Input() from?: string; 
   @Input() to?: string;
 
   @ViewChild('container', { static: true }) container!: ElementRef<HTMLDivElement>;

@@ -1,4 +1,3 @@
-// fetches /api/signupsMonthly and renders Highcharts with a datetime x-axis
 import { Component, AfterViewInit, OnDestroy, ViewChild, ElementRef, inject } from '@angular/core';
 import * as Highcharts from 'highcharts';
 import { isPlatformBrowser } from '@angular/common';
@@ -20,6 +19,7 @@ export class SignupsMonthlyComponent implements AfterViewInit, OnDestroy {
   ngAfterViewInit(): void {
     if (!isPlatformBrowser(this.platformId)) return;
 
+    // 1) Create chart shell
     this.chart = Highcharts.chart(this.container.nativeElement, {
       chart: { type: 'column' },
       title: { text: 'New sign-ups' },
@@ -44,6 +44,7 @@ export class SignupsMonthlyComponent implements AfterViewInit, OnDestroy {
       series: [{ type: 'column', name: 'Sign-ups', colorByPoint: true, data: [] }]
     } as Highcharts.Options);
 
+    // 2) Load data from backend
     this.api.getSignupsMonthly()
       .subscribe({
         next: (res) => {

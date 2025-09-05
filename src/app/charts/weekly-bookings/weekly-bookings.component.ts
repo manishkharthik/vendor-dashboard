@@ -26,7 +26,7 @@ export class WeeklyBookingsComponent implements AfterViewInit, OnDestroy {
   ngAfterViewInit() {
     if (!isPlatformBrowser(this.platformId)) return;
 
-    // 1) Create an empty chart
+    // 1) Create chart shell
     this.chart = Highcharts.chart(this.container.nativeElement, {
       chart: { type: 'line' },
       title: { text: 'Weekly Booking data' },
@@ -52,7 +52,7 @@ export class WeeklyBookingsComponent implements AfterViewInit, OnDestroy {
       ]
     });
 
-    // 2) Fetch data and update the chart
+    // 2) Fetch data and update chart
     const bookings$ = this.api.getWeeklyBookings({ vendorId: '67f773acc9504931fcc411ec' });
     const cancels$  = this.api.getWeeklyCancellations({ vendorId: '67f773acc9504931fcc411ec' });  
     forkJoin({
@@ -65,7 +65,6 @@ export class WeeklyBookingsComponent implements AfterViewInit, OnDestroy {
         const cats = bookings?.categories ?? [];
         const bookingsData = (bookings?.series?.[0]?.data ?? []).map(v => Math.round(Number(v) || 0));
 
-        // Map cancellations by label for quick lookup; default 0 where missing
         const cMap = new Map<string, number>();
         (cancels?.categories ?? []).forEach((label, i) => {
           const n = Number(cancels?.series?.[0]?.data?.[i] ?? 0);
@@ -73,15 +72,13 @@ export class WeeklyBookingsComponent implements AfterViewInit, OnDestroy {
         });
         const cancelsData = cats.map(label => cMap.get(label) ?? 0);
 
-        // Update chart
         this.chart.xAxis[0].setCategories(cats, false);
-        this.chart.series[0].setData(bookingsData, false); // Total Bookings
-        this.chart.series[1].setData(cancelsData, true);   // Cancellations
+        this.chart.series[0].setData(bookingsData, false);
+        this.chart.series[1].setData(cancelsData, true);
       },
       error: (err) => console.error('[weekly-bookings] fetch error:', err)
     });
   }
-
   ngOnDestroy() {
     this.chart?.destroy();
   }

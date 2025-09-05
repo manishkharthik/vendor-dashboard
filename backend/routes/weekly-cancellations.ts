@@ -24,7 +24,7 @@ export default function weeklyCancellationsRoute(db: any) {
         // 1) Explode each user's bookings
         { $unwind: "$bookings" },
 
-        // 2) serviceId == vendorId (support ObjectId or string) AND inactive bookings
+        // 2) Match only bookings for the vendor and that are cancelled
         {
           $match: {
             $and: [
