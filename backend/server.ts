@@ -5,15 +5,31 @@ import cors from "cors";
 import { MongoClient } from "mongodb";
 
 import { setFixedTimeWindow } from "./middleware/time-window";
-import weeklyBookingsRoute from "./routes/weekly-bookings";
-import weeklySalesRoute from "./routes/weekly-sales";
-import signupsMonthlyRoute from "./routes/signups-monthly";
-import revenueByTierRoute from "./routes/revenue-by-tier";
-import bookingsByFacilityRoute from "./routes/bookings-by-facility";
-import weeklyCancellationsRoute from "./routes/weekly-cancellations";
-import aovByVisitRoute from "./routes/aov-by-visit";
-import newVsReturningRoute from "./routes/new-vs-returning";
 
+// Import controllers and routes
+import AovByVisitController from "./controllers/aov-by-visit.controller";
+import aovByVisitRoutes from "./routes/aov-by-visit";
+
+import FacilitiesController from "./controllers/bookings-by-facility.controller";
+import bookingsByFacilityRoutes from "./routes/bookings-by-facility";
+
+import NewVsReturningVisitsController from "./controllers/new-vs-returning.controller";
+import newVsReturningVisitsRoutes from "./routes/new-vs-returning";
+
+import RevenueByTierController from "./controllers/revenue-by-tier.controller";
+import revenueByTierRoutes from "./routes/revenue-by-tier";
+
+import SignupsMonthlyController from "./controllers/signups-monthly.controller";
+import signupsMonthlyRoutes from "./routes/signups-monthly";
+
+import WeeklyBookingsController from "./controllers/weekly-bookings.controller";
+import weeklyBookingsRoutes from "./routes/weekly-bookings";
+
+import WeeklyCancellationsController from "./controllers/weekly-cancellations.controller";
+import weeklyCancellationsRoutes from "./routes/weekly-cancellations";
+
+import WeeklySalesController from "./controllers/weekly-sales.controller";
+import weeklySalesRoutes from "./routes/weekly-sales";
 
 dotenv.config({ path: "../.env" });
 dotenv.config({ path: resolve(process.cwd(), '.env') });
@@ -42,15 +58,30 @@ async function startServer() {
 
     app.get("/", (req, res) => res.send("API is running"));
 
-    // API routes
-    app.use("/api/weekly-bookings", weeklyBookingsRoute(db));
-    app.use("/api/weekly-sales", weeklySalesRoute(db));
-    app.use("/api/signups-monthly", signupsMonthlyRoute(db));
-    app.use("/api/revenue-by-tier", revenueByTierRoute(db));
-    app.use("/api/bookings-by-facility", bookingsByFacilityRoute(db));
-    app.use("/api/weekly-cancellations", weeklyCancellationsRoute(db));
-    app.use("/api/aov-by-visit", aovByVisitRoute(db));
-    app.use("/api/new-vs-returning", newVsReturningRoute(db));
+    // Initialize controllers and routes
+    const aovByVisitCtrl = new AovByVisitController(db);
+    app.use("/", aovByVisitRoutes(aovByVisitCtrl));
+
+    const facilitiesCtrl = new FacilitiesController(db);
+    app.use("/", bookingsByFacilityRoutes(facilitiesCtrl));
+
+    const newVsReturningCtrl = new NewVsReturningVisitsController(db);
+    app.use("/", newVsReturningVisitsRoutes(newVsReturningCtrl));
+
+    const revenueByTierCtrl = new RevenueByTierController(db);
+    app.use("/", revenueByTierRoutes(revenueByTierCtrl));
+
+    const signupsMonthlyCtrl = new SignupsMonthlyController(db);
+    app.use("/", signupsMonthlyRoutes(signupsMonthlyCtrl));
+
+    const weeklyBookingsCtrl = new WeeklyBookingsController(db);
+    app.use("/", weeklyBookingsRoutes(weeklyBookingsCtrl));
+
+    const weeklyCancellationsCtrl = new WeeklyCancellationsController(db);
+    app.use("/", weeklyCancellationsRoutes(weeklyCancellationsCtrl));
+    
+    const weeklySalesCtrl = new WeeklySalesController(db);
+    app.use("/", weeklySalesRoutes(weeklySalesCtrl));
 
     app.listen(port, () => {
       console.log(`Backend running at http://localhost:${port}`);
@@ -62,4 +93,3 @@ async function startServer() {
 }
 
 startServer();
-
