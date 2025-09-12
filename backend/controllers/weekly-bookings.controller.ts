@@ -1,10 +1,12 @@
 import { Db, ObjectId } from "mongodb";
+import { Request, Response } from "express";
+
 
 export default class WeeklyBookingsController {
   constructor(private db: Db) {}
 
   // GET /api/weekly-bookings
-  async weekly(req, res) {
+  async weekly(req: Request, res: Response) {
     try {
       const users = this.db.collection("users");
       const { start, end, tz } = res.locals.window as { start: Date; end: Date; tz: string };
@@ -112,8 +114,8 @@ export default class WeeklyBookingsController {
 
       return res.json({
         window: { start, end, tz },
-        categories: rows.map((r: { label: string }) => r.label),
-        series: [{ name: "Total Bookings", data: rows.map((r: { count: number }) => r.count) }]
+        categories: (rows as Array<{ label: string }>).map(r => r.label),
+        series: [{ name: "Total Bookings", data: (rows as Array<{ count: number }>).map(r => r.count) }]
       });
     } catch (err: any) {
       console.error("weekly-bookings (users) error:", err?.message ?? err);

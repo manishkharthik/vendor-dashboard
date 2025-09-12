@@ -1,10 +1,11 @@
 import { Db, ObjectId } from "mongodb";
+import { Request, Response } from "express";
 
 export default class SignupsMonthlyController {
   constructor(private db: Db) {}
 
   // GET /api/signups-monthly
-  async monthly(req, res) {
+  async monthly(req: Request, res: Response) {
     try {
       const users = this.db.collection('users');
 

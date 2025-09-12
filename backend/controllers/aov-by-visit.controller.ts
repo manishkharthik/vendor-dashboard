@@ -1,10 +1,11 @@
+import { Request, Response } from "express";
 import { Db } from "mongodb";
 
 export default class AovByVisitController {
   constructor(private db: Db) {}
 
   // GET /api/aov-by-visit?step=by-actual&vendorId
-  async aovByActual(req, res) {
+  async aovByActual(req: Request, res: Response) {
     try {
       const step = (req.query.step as string) || "";
       if (step !== "by-actual") {

@@ -1,11 +1,12 @@
 import { Db, ObjectId } from "mongodb";
+import { Request, Response } from "express";
 import { Facilities } from "../models/schema";
 
 export default class FacilitiesController {
   constructor(private db: Db) {}
 
   // GET /api/bookings-by-facility?vendorId=<ObjectId>
-  async bookingsByFacility(req, res) {
+  async bookingsByFacility(req: Request, res: Response) {
     try {
       const facilities = Facilities(this.db);
       const { start, end, tz } = res.locals.window as { start: Date; end: Date; tz: string };

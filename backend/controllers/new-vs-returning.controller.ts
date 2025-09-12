@@ -1,11 +1,12 @@
 import { Db, ObjectId } from "mongodb";
+import { Request, Response } from "express";
 import { Users, MemberVisits } from "../models/schema";
 
 export default class NewVsReturningVisitsController {
   constructor(private db: Db) {}
 
   // GET /api/new-vs-returning?step=fr-weekly
-  async newVsReturningWeekly(req, res) {
+  async newVsReturningWeekly(req: Request, res: Response) {
     try {
       const step = String(req.query.step || "");
       if (step !== "fr-weekly") {

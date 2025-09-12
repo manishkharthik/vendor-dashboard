@@ -1,4 +1,5 @@
 import { Db, ObjectId } from "mongodb";
+import { Request, Response } from "express";
 
 type CancelRow = { label: string; count: number };
 
@@ -6,7 +7,7 @@ export default class WeeklyCancellationsController {
   constructor(private db: Db) {}
 
   // GET /api/weekly-cancellations
-  async weekly(req, res) {
+  async weekly(req: Request, res: Response) {
     try {
       const users = this.db.collection("users");
       const { start, end, tz } = res.locals.window; 

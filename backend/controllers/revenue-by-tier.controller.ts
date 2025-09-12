@@ -1,11 +1,12 @@
 import { Db, ObjectId } from "mongodb";
+import { Request, Response } from "express";
 import { MemberVisits } from "../models/schema";
 
 export default class RevenueByTierController {
   constructor(private db: Db) {}
 
   // GET /api/revenue-by-tier?vendorId=<ObjectId>
-  async byTier(req, res) {
+  async byTier(req: Request, res: Response) {
     try {
       const visits = MemberVisits(this.db);
       const { start, end, tz } = res.locals.window as { start: Date; end: Date; tz: string };

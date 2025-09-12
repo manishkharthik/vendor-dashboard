@@ -1,10 +1,11 @@
 import { Db, ObjectId } from "mongodb";
+import { Request, Response } from "express";
 
 export default class WeeklySalesController {
   constructor(private db: Db) {}
 
   // GET /api/weekly-sales
-  async weekly(req, res) {
+  async weekly(req: Request, res: Response) {
     try {
       const visits = this.db.collection("member_visits");
       const { start, end, tz } = res.locals.window as { start: Date; end: Date; tz: string };
