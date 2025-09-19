@@ -2,10 +2,26 @@ import { Db, ObjectId } from "mongodb";
 import { Request, Response } from "express";
 import { Users, MemberVisits } from "../models/schema";
 
+interface UserIdsDoc {
+  userIds: ObjectId[];
+}
+
+interface EarliestDoc {
+  _id: ObjectId;
+  firstVisit: Date;
+}
+
+interface VisitRow {
+  memberId: ObjectId;
+  visitDate: Date;
+  net: number;
+  year: number;
+  week: number;
+}
+
 export default class NewVsReturningVisitsController {
   constructor(private db: Db) {}
 
-  // GET /api/new-vs-returning?step=fr-weekly
   async newVsReturningWeekly(req: Request, res: Response) {
     try {
       const step = String(req.query.step || "");
@@ -13,33 +29,25 @@ export default class NewVsReturningVisitsController {
         return res.status(400).json({ error: "Add ?step=fr-weekly" });
       }
 
-      const usersCol  = Users(this.db);
+      const usersCol = Users(this.db);
       const visitsCol = MemberVisits(this.db);
 
-      const vendorId = "67f773acc9504931fcc411ec"; 
-      const vendorObj = new ObjectId(vendorId);   
+      const vendorId = "67f773acc9504931fcc411ec";
+      const vendorObj = new ObjectId(vendorId);
 
       const { start, end, tz } = res.locals.window as { start: Date; end: Date; tz: string };
 
-      // 1) userIds for this vendor, with totalVisits >= 1 (latest tier per user)
-      const idsDoc = await usersCol.aggregate([
-        { $unwind: { path: "$userLoyaltyTier", preserveNullAndEmptyArrays: false } },
-        { $match: { "userLoyaltyTier.vendorId": vendorId } },
-        { $set: {
-            _mdj: { $convert: { input: "$userLoyaltyTier.memberDateJoined", to: "date", onError: null, onNull: null } },
-            _tv:  "$userLoyaltyTier.totalVisits"
-        }},
-        { $sort: { _id: 1, _mdj: -1 } },
-        { $group: { _id: "$_id", tvLatest: { $first: "$_tv" } } },
-        { $set: {
-            totalVisits: {
-              $convert: { input: { $trim: { input: { $toString: "$tvLatest" } } }, to: "int", onError: null, onNull: null }
-            }
-        }},
-        { $match: { totalVisits: { $gte: 1 } } },
-        { $group: { _id: null, userIds: { $addToSet: "$_id" } } },
-        { $project: { _id: 0, userIds: 1 } }
-      ]).next();
+      // 1) Find userIds
+      const idsDoc = await usersCol
+        .aggregate<UserIdsDoc>([
+          { $unwind: "$userLoyaltyTier" },
+          { $match: { "userLoyaltyTier.vendorId": vendorId } },
+          { $group: { _id: "$_id", tvLatest: { $last: "$userLoyaltyTier.totalVisits" } } },
+          { $match: { tvLatest: { $gte: 1 } } },
+          { $group: { _id: null, userIds: { $addToSet: "$_id" } } },
+          { $project: { _id: 0, userIds: 1 } }
+        ])
+        .next();
 
       const userIds: ObjectId[] = idsDoc?.userIds ?? [];
       if (!userIds.length) {
@@ -49,72 +57,83 @@ export default class NewVsReturningVisitsController {
           categories: [],
           series: [
             { name: "First-time", data: [] },
-            { name: "Returning",  data: [] }
+            { name: "Returning", data: [] }
           ]
         });
       }
 
-      // 2) visits for those users & vendor → label first vs returning per member → group by week
-      const rows = await visitsCol.aggregate([
-        { $match: { memberId: { $in: userIds }, vendorId: vendorObj } },
+      // 2) Earliest visit for each user
+      const earliestDocs = await visitsCol
+        .aggregate<EarliestDoc>([
+          { $match: { memberId: { $in: userIds }, vendorId: vendorObj } },
+          { $group: { _id: "$memberId", firstVisit: { $min: "$visitDate" } } }
+        ])
+        .toArray();
 
-        { $set: {
-            _visit: { $convert: { input: "$visitDate", to: "date", onError: null, onNull: null } },
-            _spent: { $toDouble: { $ifNull: ["$amountSpent", 0] } },
-            _saved: { $toDouble: { $ifNull: ["$amountSaved", 0] } }
-        }},
-        { $match: { _visit: { $ne: null } } },
-        { $set: { _net: { $subtract: ["$_spent", "$_saved"] } } },
+      const earliestVisitMap: Record<string, Date> = {};
+      earliestDocs.forEach(d => {
+        earliestVisitMap[d._id.toHexString()] = d.firstVisit;
+      });
 
-        { $set: {
-            _sortKey: {
-              $concat: [
-                { $toString: { $toLong: "$_visit" } }, "-",
-                { $toString: "$_id" }
-              ]
+      // 3) Visits inside time window
+      const rawVisits = await visitsCol
+        .aggregate<VisitRow>([
+          {
+            $match: {
+              memberId: { $in: userIds },
+              vendorId: vendorObj,
+              visitDate: { $gte: start, $lt: end }
             }
-        }},
-        {
-          $setWindowFields: {
-            partitionBy: "$memberId",
-            sortBy: { _sortKey: 1 },            
-            output: { visitIndex: { $documentNumber: {} } }
-          }
-        },
-
-        { $match: { _visit: { $gte: start, $lt: end } } },
-
-        { $set: {
-            weekStart: {
-              $dateTrunc: { date: "$_visit", unit: "week", timezone: tz, startOfWeek: "monday" }
+          },
+          {
+            $project: {
+              memberId: 1,
+              visitDate: 1,
+              net: { $subtract: [{ $ifNull: ["$amountSpent", 0] }, { $ifNull: ["$amountSaved", 0] }] },
+              year: { $isoWeekYear: "$visitDate" },
+              week: { $isoWeek: "$visitDate" }
             }
-        }},
-
-        {
-          $group: {
-            _id: "$weekStart",
-            firstCount:     { $sum: { $cond: [{ $eq: ["$visitIndex", 1] }, 1, 0] } },
-            returningCount: { $sum: { $cond: [{ $gt: ["$visitIndex", 1] }, 1, 0] } },
-            firstTotal:     { $sum: { $cond: [{ $eq: ["$visitIndex", 1] }, "$_net", 0] } },
-            returningTotal: { $sum: { $cond: [{ $gt: ["$visitIndex", 1] }, "$_net", 0] } }
           }
-        },
-        { $sort: { _id: 1 } },
-        { $project: {
-            _id: 0,
-            weekStart: 1,
-            label: { $dateToString: { date: "$_id", format: "Week of %d %b %Y", timezone: tz } },
-            firstTotal:     { $round: ["$firstTotal", 2] },
-            returningTotal: { $round: ["$returningTotal", 2] },
-            firstCount: 1,
-            returningCount: 1
-        }}
-      ]).toArray();
+        ])
+        .toArray();
 
-      // 3. Chart shape
+      // 4) Post-process
+      const grouped: Record<string, any> = {};
+
+      for (const v of rawVisits) {
+        const key = `${v.year}-W${v.week}`;
+        if (!grouped[key]) {
+          grouped[key] = { year: v.year, week: v.week, firstCount: 0, returningCount: 0, firstTotal: 0, returningTotal: 0 };
+        }
+
+        const uid = v.memberId.toHexString();
+        const firstVisit = earliestVisitMap[uid];
+
+        const isFirst = firstVisit && v.visitDate.getTime() === firstVisit.getTime();
+        if (isFirst) {
+          grouped[key].firstCount += 1;
+          grouped[key].firstTotal += v.net;
+        } else {
+          grouped[key].returningCount += 1;
+          grouped[key].returningTotal += v.net;
+        }
+      }
+
+      // Convert to array
+      const rows = Object.values(grouped).sort((a: any, b: any) =>
+        a.year === b.year ? a.week - b.week : a.year - b.year
+      );
+
+      rows.forEach(r => {
+        r.firstTotal = Number(r.firstTotal.toFixed(2));
+        r.returningTotal = Number(r.returningTotal.toFixed(2));
+        r.label = `Week ${r.week}, ${r.year}`;
+      });
+
+      // 5) Response
       const categories = rows.map(r => r.label);
-      const firstSeries = rows.map(r => Number(r.firstCount || 0));
-      const returningSeries = rows.map(r => Number(r.returningCount || 0));
+      const firstSeries = rows.map(r => r.firstCount);
+      const returningSeries = rows.map(r => r.returningCount);
 
       return res.json({
         window: { start, end, tz },
@@ -122,12 +141,13 @@ export default class NewVsReturningVisitsController {
         categories,
         series: [
           { name: "First-time", data: firstSeries },
-          { name: "Returning",  data: returningSeries }
+          { name: "Returning", data: returningSeries }
         ]
       });
-    } catch (e: any) {
-      console.error("[new-vs-returning fr-weekly] error:", e?.message, e?.stack);
-      return res.status(500).json({ error: e?.message || "Failed fr-weekly" });
+    } catch (err: any) {
+      console.error("[newVsReturningWeekly] error:", err?.message ?? err);
+      return res.status(500).json({ error: "Failed to fetch new vs returning visits" });
     }
   }
 }
+

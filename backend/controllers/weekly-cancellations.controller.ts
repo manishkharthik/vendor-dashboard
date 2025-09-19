@@ -10,7 +10,7 @@ export default class WeeklyCancellationsController {
   async weekly(req: Request, res: Response) {
     try {
       const users = this.db.collection("users");
-      const { start, end, tz } = res.locals.window; 
+      const { start, end, tz } = res.locals.window as { start: Date; end: Date; tz: string };
 
       const vendorIdParam =
         (req.query.vendorId as string)?.trim() || "67f773acc9504931fcc411ec";
@@ -19,94 +19,64 @@ export default class WeeklyCancellationsController {
       try {
         vendorObjId = new ObjectId(vendorIdParam);
       } catch {
-        
+        // fall back to string
       }
 
       const pipeline: any[] = [
         // 1) Explode each user's bookings
         { $unwind: "$bookings" },
 
-        // 2) serviceId == vendorId (support ObjectId or string) AND inactive bookings
+        // 2) Match serviceId to vendor + inactive
         {
           $match: {
             $and: [
               {
-                $expr: {
-                  $or: [
-                    ...(vendorObjId ? [{ $eq: ["$bookings.serviceId", vendorObjId] }] : []),
-                    { $eq: ["$bookings.serviceId", vendorIdParam] },
-                    { $eq: [{ $toString: "$bookings.serviceId" }, vendorIdParam] }
-                  ]
-                }
+                $or: [
+                  ...(vendorObjId ? [{ "bookings.serviceId": vendorObjId }] : []),
+                  { "bookings.serviceId": vendorIdParam }
+                ]
               },
               { "bookings.isActive": false }
             ]
           }
         },
 
-        // 3) Normalize startTime to a real Date -> _dt
+        // 3) Keep only bookings with valid Date in [start, end)
         {
-          $addFields: {
-            _dt: {
-              $cond: [
-                { $eq: [{ $type: "$bookings.startTime" }, "date"] },
-                "$bookings.startTime",
-                {
-                  $convert: {
-                    input: "$bookings.startTime",
-                    to: "date",
-                    onError: null,
-                    onNull: null
-                  }
-                }
-              ]
-            }
+          $match: {
+            "bookings.startTime": { $ne: null, $gte: start, $lt: end }
           }
         },
 
-        // 4) Keep only bookings with a valid date, inside the window
-        { $match: { _dt: { $ne: null, $gte: start, $lt: end } } },
-
-        // 5) Group by week
-        {
-          $group: {
-            _id: {
-              weekStart: {
-                $dateTrunc: {
-                  date: "$_dt",
-                  unit: "week",
-                  timezone: "Asia/Singapore",
-                  startOfWeek: "Mon"
-                }
-              }
-            },
-            cancellations: { $sum: 1 }
-          }
-        },
-        { $sort: { "_id.weekStart": 1 } },
-
-        // 6) Shape for charts
+        // 4) Group by ISO week/year
         {
           $project: {
-            _id: 0,
-            label: {
-              $dateToString: {
-                date: "$_id.weekStart",
-                format: "Week of %d %b %Y",
-                timezone: "Asia/Singapore"
-              }
-            },
-            count: "$cancellations"
+            startTime: "$bookings.startTime",
+            year: { $isoWeekYear: "$bookings.startTime" },
+            week: { $isoWeek: "$bookings.startTime" }
           }
-        }
+        },
+        {
+          $group: {
+            _id: { year: "$year", week: "$week" },
+            count: { $sum: 1 }
+          }
+        },
+        { $sort: { "_id.year": 1, "_id.week": 1 } }
       ];
 
-      const rows = (await users.aggregate(pipeline).toArray()) as CancelRow[];
+      const rows = await users.aggregate<CancelRow & { _id: { year: number; week: number } }>(pipeline).toArray();
+
+      // Format labels in Node.js
+      const formatted: CancelRow[] = rows.map(r => ({
+        label: `Week ${r._id.week}, ${r._id.year}`,
+        count: r.count
+      }));
 
       return res.json({
         window: { start, end, tz },
-        categories: rows.map((r: CancelRow) => r.label),
-        series: [{ name: "Cancellations", data: rows.map((r: CancelRow) => r.count) }]
+        categories: formatted.map(r => r.label),
+        series: [{ name: "Cancellations", data: formatted.map(r => r.count) }]
       });
     } catch (err: any) {
       console.error("[weekly-cancellations] error:", err?.message ?? err, err?.stack ?? "");

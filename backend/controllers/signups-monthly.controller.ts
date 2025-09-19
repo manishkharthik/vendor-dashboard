@@ -1,76 +1,86 @@
 import { Db, ObjectId } from "mongodb";
 import { Request, Response } from "express";
 
+interface SignupRow {
+  _id?: { year: number; week: number };
+  weekStart: Date;
+  label: string;
+  total: number;
+}
+
 export default class SignupsMonthlyController {
   constructor(private db: Db) {}
 
   // GET /api/signups-monthly
   async monthly(req: Request, res: Response) {
     try {
-      const users = this.db.collection('users');
+      const users = this.db.collection("users");
 
-      const { start, end, tz } = res.locals.window;
+      const { start, end, tz } = res.locals.window as { start: Date; end: Date; tz: string };
 
       const vendorIdParam = (req.query.vendorId as string)?.trim() ?? "67f773acc9504931fcc411ec";
-      let vendorObjId: ObjectId | null = null;
-      try { 
-        vendorObjId = new ObjectId(vendorIdParam); 
-      } catch {
-        
-      }
 
       const pipeline = [
-        // 1) explode the array so each tier entry is its own doc
+        // 1) Unwind tiers so we can vendor-filter
         { $unwind: { path: "$userLoyaltyTier", preserveNullAndEmptyArrays: false } },
-        // 2) vendor filter (string)
+
+        // 2) Vendor filter (string fallback)
         { $match: { "userLoyaltyTier.vendorId": vendorIdParam } },
-        // 3) convert string -> Date 
-        { $set: {
-            _mdj: {
-              $convert: { 
-                input: "$userLoyaltyTier.memberDateJoined", 
-                to: "date", 
-                onError: null, onNull: null 
-              }
+
+        // 3) Use createdAt if exists, else fallback to _id timestamp
+        {
+          $project: {
+            signupDate: {
+              $cond: [
+                { $ifNull: ["$createdAt", false] },
+                "$createdAt",
+                "$_id"
+              ]
             }
           }
         },
-        // 4) Window on the converted date
-        { $match: { _mdj: { $ne: null, $gte: start, $lt: end } } },
-        // 5) Weekly buckets (Mon–Sun) in the same timezone
+
+        // 4) Restrict by reporting window
+        { $match: { signupDate: { $gte: start, $lt: end } } },
+
+        // 5) Derive week/year (works in 3.6)
+        {
+          $project: {
+            signupDate: 1,
+            year: { $isoWeekYear: "$signupDate" },
+            week: { $isoWeek: "$signupDate" }
+          }
+        },
+
+        // 6) Group per week
         {
           $group: {
-            _id: {
-              weekStart: {
-                $dateTrunc: { date: "$_mdj", unit: "week", timezone: tz, startOfWeek: "Mon" }
-              }
-            },
+            _id: { year: "$year", week: "$week" },
+            weekStart: { $min: "$signupDate" },
             total: { $sum: 1 }
           }
         },
-        { $sort: { "_id.weekStart": 1 } },
-        // 6) tidy output 
-        {
-          $project: {
-            _id: 0,
-            weekStart: "$_id.weekStart",
-            label: {
-              $dateToString: { date: "$_id.weekStart", format: "Week of %d %b %Y", timezone: tz }
-            },
-            total: 1
-          }
-        }
+
+        { $sort: { "_id.year": 1, "_id.week": 1 } }
       ];
 
-      const rows = await users.aggregate(pipeline).toArray();
+      const rows = await users.aggregate<SignupRow>(pipeline).toArray();
+
+      // Add labels for charting
+      rows.forEach(r => {
+        const year = r._id?.year ?? new Date(r.weekStart).getUTCFullYear();
+        const week = r._id?.week ?? 0;
+        r.label = `Week ${week}, ${year}`;
+      });
+
       return res.json({
         window: { start, end, tz },
-        categories: rows.map((r: any) => r.label),
-        series: [{ name: "Sign-ups", data: rows.map((r: any) => r.total) }]
+        categories: rows.map(r => r.label),
+        series: [{ name: "Sign-ups", data: rows.map(r => r.total) }]
       });
     } catch (err: any) {
-      console.error('signups-monthly error:', err?.message ?? err, err?.stack ?? '');
-      return res.status(500).json({ error: 'Failed to fetch signups by month' });
+      console.error("signups-monthly error:", err?.message ?? err, err?.stack ?? "");
+      return res.status(500).json({ error: "Failed to fetch signups by month" });
     }
   }
 }

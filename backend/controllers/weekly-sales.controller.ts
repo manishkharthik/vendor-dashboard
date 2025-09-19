@@ -8,7 +8,11 @@ export default class WeeklySalesController {
   async weekly(req: Request, res: Response) {
     try {
       const visits = this.db.collection("member_visits");
-      const { start, end, tz } = res.locals.window as { start: Date; end: Date; tz: string };
+      const { start, end, tz } = res.locals.window as {
+        start: Date;
+        end: Date;
+        tz: string;
+      };
 
       const rawVendor = (req.query.vendorId as string)?.trim() ?? "67f773acc9504931fcc411ec";
 
@@ -21,58 +25,57 @@ export default class WeeklySalesController {
           .json({ error: "Invalid vendorId format (expected ObjectId)" });
       }
 
-      const match = {
-        vendorId: vendorObjId,
-        visitDate: { $gte: start, $lt: end },
-        $expr: { $eq: [{ $type: "$visitDate" }, "date"] }
-      };
-
       const pipeline = [
-        // 1) Filter by vendorId and date range
-        { $match: match },
-
-        // 2) Group by week and sum amountSpent
+        // 1. filter
         {
-          $group: {
-            _id: {
-              weekStart: {
-                $dateTrunc: {
-                  date: "$visitDate",
-                  unit: "week",
-                  timezone: tz,
-                  startOfWeek: "Mon"
-                }
-              }
-            },
-            totalSales: { $sum: { $ifNull: ["$amountSpent", 0] } }
+          $match: {
+            vendorId: vendorObjId,
+            visitDate: { $gte: start, $lt: end }
           }
         },
 
-        // 3) Sort by weekStart
-        { $sort: { "_id.weekStart": 1 } },
-
-        // 4) Shape output
+        // 2. project fields
         {
           $project: {
-            _id: 0,
-            weekStart: "$_id.weekStart",
-            totalSales: 1,
-            label: {
-              $dateToString: {
-                date: "$_id.weekStart",
-                format: "Week of %d %b %Y",
-                timezone: "Asia/Singapore"
-              }
-            }
+            amountSpent: { $ifNull: ["$amountSpent", 0] },
+            visitDate: 1,
+            year: { $isoWeekYear: "$visitDate" },
+            week: { $isoWeek: "$visitDate" }
           }
-        }
+        },
+
+        // 3. group by iso year/week
+        {
+          $group: {
+            _id: { year: "$year", week: "$week" },
+            weekStart: { $min: "$visitDate" },
+            totalSales: { $sum: "$amountSpent" }
+          }
+        },
+
+        { $sort: { "_id.year": 1, "_id.week": 1 } }
       ];
 
       const rows = await visits.aggregate(pipeline).toArray();
 
+      // 4. build labels in Node.js
+      const formatted = rows.map(r => {
+        const year = r._id.year;
+        const week = r._id.week;
+        const date = new Date(r.weekStart);
+        return {
+          ...r,
+          label: `Week ${week}, ${year}`,
+          weekStart: date,
+          totalSales: Number(r.totalSales.toFixed(2))
+        };
+      });
+
       return res.json({
-        categories: rows.map((r: any) => r.label),
-        series: [{ name: "Sales (SGD)", data: rows.map((r: any) => r.totalSales) }]
+        window: { start, end, tz },
+        categories: formatted.map(r => r.label),
+        series: [{ name: "Sales (SGD)", data: formatted.map(r => r.totalSales) }],
+        table: formatted
       });
     } catch (err: any) {
       console.error("weekly-sales error:", err?.message ?? err);

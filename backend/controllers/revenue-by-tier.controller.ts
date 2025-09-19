@@ -2,6 +2,12 @@ import { Db, ObjectId } from "mongodb";
 import { Request, Response } from "express";
 import { MemberVisits } from "../models/schema";
 
+interface RevenueRow {
+  tier: string;
+  totalRevenueGross: number;
+  totalRevenueNet: number;
+}
+
 export default class RevenueByTierController {
   constructor(private db: Db) {}
 
@@ -13,48 +19,53 @@ export default class RevenueByTierController {
 
       const rawVendor = (req.query.vendorId as string)?.trim() || "67f773acc9504931fcc411ec";
       let vendorObjId: ObjectId;
-      try { vendorObjId = new ObjectId(rawVendor); }
-      catch { return res.status(400).json({ error: "Invalid vendorId (expected ObjectId hex)" }); }
+      try {
+        vendorObjId = new ObjectId(rawVendor);
+      } catch {
+        return res.status(400).json({ error: "Invalid vendorId (expected ObjectId hex)" });
+      }
 
       const pipeline = [
         // 1. filter by vendor
         { $match: { vendorId: vendorObjId } },
 
-        // 2. normalize fields
-        { $set: {
-            _visit: { $convert: { input: "$visitDate", to: "date", onError: null, onNull: null } },
-            _spent: { $toDouble: { $ifNull: ["$amountSpent", 0] } },
-            _saved: { $toDouble: { $ifNull: ["$amountSaved", 0] } },
-            _tier: {
-              $trim: {
-                input: { $convert: { input: "$tier.displayName", to: "string", onError: "Unknown", onNull: "Unknown" } }
-              }
+        // 2. normalize fields (no $convert/$trim in 3.6)
+        {
+          $project: {
+            visitDate: 1,
+            spent: { $ifNull: ["$amountSpent", 0] },
+            saved: { $ifNull: ["$amountSaved", 0] },
+            tier: {
+              $cond: [
+                { $ifNull: ["$tier.displayName", false] },
+                "$tier.displayName",
+                "Unknown"
+              ]
             }
-        }},
+          }
+        },
 
         // 3. filter by date range
-        { $match: { _visit: { $ne: null, $gte: start, $lt: end } } },
+        { $match: { visitDate: { $gte: start, $lt: end } } },
 
         // 4. group by tier
         {
           $group: {
-            _id: "$_tier",
-            totalRevenueGross: { $sum: "$_spent" },
-            totalRevenueNet:   { $sum: { $subtract: ["$_spent", "$_saved"] } }
+            _id: "$tier",
+            totalRevenueGross: { $sum: "$spent" },
+            totalRevenueNet: { $sum: { $subtract: ["$spent", "$saved"] } }
           }
         },
-        { $sort: { totalRevenueGross: -1, _id: 1 } },
-        {
-          $project: {
-            _id: 0,
-            tier: "$_id",
-            totalRevenueGross: { $round: ["$totalRevenueGross", 0] },
-            totalRevenueNet:   { $round: ["$totalRevenueNet", 0] }
-          }
-        }
+        { $sort: { totalRevenueGross: -1, _id: 1 } }
       ];
 
-      const rows = await visits.aggregate(pipeline).toArray();
+      const rows = await visits.aggregate<RevenueRow>(pipeline).toArray();
+
+      // Round in Node.js since $round isn’t in 3.6
+      rows.forEach(r => {
+        r.totalRevenueGross = Math.round(r.totalRevenueGross);
+        r.totalRevenueNet = Math.round(r.totalRevenueNet);
+      });
 
       return res.json({
         window: { start, end, tz },

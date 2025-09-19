@@ -1,6 +1,11 @@
 import { Db, ObjectId } from "mongodb";
 import { Request, Response } from "express";
-import { Facilities } from "../models/schema";
+
+interface FacilityBookingRow {
+  facilityId: ObjectId;
+  name: string;
+  count: number;
+}
 
 export default class FacilitiesController {
   constructor(private db: Db) {}
@@ -8,7 +13,7 @@ export default class FacilitiesController {
   // GET /api/bookings-by-facility?vendorId=<ObjectId>
   async bookingsByFacility(req: Request, res: Response) {
     try {
-      const facilities = Facilities(this.db);
+      const users = this.db.collection("users");
       const { start, end, tz } = res.locals.window as { start: Date; end: Date; tz: string };
 
       const rawVendor = (req.query.vendorId as string)?.trim() || "67f773acc9504931fcc411ec";
@@ -20,98 +25,46 @@ export default class FacilitiesController {
       }
 
       const pipeline = [
-        // 1) All facilities for this vendor
-        { $match: { vendorId: vendorObjId } },
+        // 1) Explode bookings
+        { $unwind: "$bookings" },
+
+        // 2) Filter by vendor/serviceId and date range
+        {
+          $match: {
+            "bookings.serviceId": vendorObjId,
+            "bookings.startTime": { $gte: start, $lt: end },
+            "bookings.isActive": true
+          }
+        },
+
+        // 3) Group by facilityId + title/unitName
+        {
+          $group: {
+            _id: {
+              facilityId: "$bookings.facilityId",
+              name: { $ifNull: ["$bookings.title", "$bookings.unitName"] }
+            },
+            count: { $sum: 1 }
+          }
+        },
+
+        // 4) Clean up
+        { $sort: { count: -1, "_id.name": 1 } },
         {
           $project: {
-            facilityId: "$_id",
-            facilityIdStr: { $toString: "$_id" },
-            name: {
-              $trim: {
-                input: { $convert: { input: "$name", to: "string", onError: "", onNull: "" } }
-              }
-            }
+            _id: 0,
+            facilityId: "$_id.facilityId",
+            name: "$_id.name",
+            count: 1
           }
-        },
-        { $match: { name: { $ne: "" } } },
-
-        // 2) Count bookings in "users.bookings" referencing this facility, within [start, end)
-        {
-          $lookup: {
-            from: "users",
-            let: { fid: "$facilityId", fidStr: "$facilityIdStr", start: start, end: end, tz: tz },
-            pipeline: [
-              { $project: { bookings: 1 } },
-              { $unwind: "$bookings" },
-
-              {
-                $addFields: {
-                  _dt: {
-                    $switch: {
-                      branches: [
-                        {
-                          case: { $eq: [{ $type: "$bookings.startTime" }, "date"] },
-                          then: "$bookings.startTime"
-                        },
-                        {
-                          case: { $eq: [{ $type: "$bookings.startTime" }, "string"] },
-                          then: {
-                            $let: {
-                              vars: { s: "$bookings.startTime" },
-                              in: {
-                                $cond: [
-                                  { $regexMatch: { input: "$$s", regex: /[zZ]|[+\-]\d{2}:\d{2}$/ } },
-                                  { $toDate: "$$s" },
-                                  { $dateFromString: { dateString: "$$s", timezone: "$$tz" } } // naive → SGT
-                                ]
-                              }
-                            }
-                          }
-                        },
-                        {
-                          case: { $in: [{ $type: "$bookings.startTime" }, ["int", "long", "decimal"]] },
-                          then: { $toDate: "$bookings.startTime" }
-                        }
-                      ],
-                      default: null
-                    }
-                  }
-                }
-              },
-
-              {
-                $match: {
-                  $expr: {
-                    $and: [
-                      {
-                        $or: [
-                          { $eq: ["$bookings.facilityId", "$$fid"] },
-                          { $eq: [{ $toString: "$bookings.facilityId" }, "$$fidStr"] }
-                        ]
-                      },
-                      { $ne: ["$_dt", null] },
-                      { $gte: ["$_dt", "$$start"] },
-                      { $lt:  ["$_dt", "$$end"] }
-                    ]
-                  }
-                }
-              },
-              { $count: "cnt" }
-            ],
-            as: "bookingCounts"
-          }
-        },
-
-        { $addFields: { count: { $ifNull: [{ $arrayElemAt: ["$bookingCounts.cnt", 0] }, 0] } } },
-        { $project: { _id: 0, facilityId: 1, name: 1, count: 1 } },
-        { $sort: { count: -1, name: 1 } }
+        }
       ];
 
-      const rows = await facilities.aggregate(pipeline).toArray();
+      const rows = await users.aggregate<FacilityBookingRow>(pipeline).toArray();
 
       return res.json({
         window: { start, end, tz },
-        categories: rows.map(r => r.name),
+        categories: rows.map(r => r.name?.trim() ?? "Unknown"),
         series: [{ name: "Bookings (count)", data: rows.map(r => r.count) }],
         table: rows
       });

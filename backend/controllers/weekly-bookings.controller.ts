@@ -1,6 +1,10 @@
 import { Db, ObjectId } from "mongodb";
 import { Request, Response } from "express";
 
+interface WeeklyRow {
+  _id: { year: number; week: number };
+  count: number;
+}
 
 export default class WeeklyBookingsController {
   constructor(private db: Db) {}
@@ -16,106 +20,59 @@ export default class WeeklyBookingsController {
       try {
         vendorObjId = new ObjectId(vendorIdParam);
       } catch {
-        
+        // fallback to string matching
       }
 
       const pipeline: any[] = [
         // 1. Explode each user's bookings
         { $unwind: "$bookings" },
 
-        // 2. Match serviceId to vendorId 
+        // 2. Match by vendorId (ObjectId or string)
         {
           $match: {
-            $expr: {
-              $or: [
-                ...(vendorObjId ? [{ $eq: ["$bookings.serviceId", vendorObjId] }] : []),
-                { $eq: ["$bookings.serviceId", vendorIdParam] },
-                { $eq: [{ $toString: "$bookings.serviceId" }, vendorIdParam] }
-              ]
-            }
+            $or: [
+              ...(vendorObjId ? [{ "bookings.serviceId": vendorObjId }] : []),
+              { "bookings.serviceId": vendorIdParam }
+            ]
           }
         },
 
-        // 3. Normalize startTime to a BSON Date in _dt
+        // 3. Only keep bookings with valid startTime within [start, end)
         {
-          $addFields: {
-            _dt: {
-              $switch: {
-                branches: [
-                  { 
-                    case: { $eq: [{ $type: "$bookings.startTime" }, "date"] },
-                    then: "$bookings.startTime"
-                  },
-                  { 
-                    case: { $eq: [{ $type: "$bookings.startTime" }, "string"] },
-                    then: {
-                      $let: {
-                        vars: { s: "$bookings.startTime" },
-                        in: {
-                          $cond: [
-                            { $regexMatch: { input: "$$s", regex: /[zZ]|[+\-]\d{2}:\d{2}$/ } },
-                            { $toDate: "$$s" },
-                            { $dateFromString: { dateString: "$$s", timezone: tz } }
-                          ]
-                        }
-                      }
-                    }
-                  },
-                  {
-                    case: { $in: [{ $type: "$bookings.startTime" }, ["int", "long", "decimal"] ] },
-                    then: { $toDate: "$bookings.startTime" }
-                  }
-                ],
-                default: null
-              }
-            }
+          $match: {
+            "bookings.startTime": { $ne: null, $gte: start, $lt: end }
           }
         },
 
-        // 4. Match to the date range
-        { $match: { _dt: { $ne: null, $gte: start, $lt: end } } },
-
-        // 5. Group by week 
-        {
-          $group: {
-            _id: {
-              weekStart: {
-                $dateTrunc: {
-                  date: "$_dt",
-                  unit: "week",
-                  timezone: "Asia/Singapore",
-                  startOfWeek: "Mon",
-                }
-              }
-            },
-            bookings: { $sum: 1 }
-          }
-        },
-        
-        { $sort: { "_id.weekStart": 1 } },
-
-        // 6. Format the output
+        // 4. Group by ISO week/year
         {
           $project: {
-            _id: 0,
-            label: {
-              $dateToString: {
-                date: "$_id.weekStart",
-                format: "Week of %d %b %Y",
-                timezone: "Asia/Singapore"
-              }
-            },
-            count: "$bookings"
+            startTime: "$bookings.startTime",
+            year: { $isoWeekYear: "$bookings.startTime" },
+            week: { $isoWeek: "$bookings.startTime" }
           }
-        }
+        },
+        {
+          $group: {
+            _id: { year: "$year", week: "$week" },
+            count: { $sum: 1 }
+          }
+        },
+        { $sort: { "_id.year": 1, "_id.week": 1 } }
       ];
 
-      const rows = await users.aggregate(pipeline).toArray();
+      const rows = await users.aggregate<WeeklyRow>(pipeline).toArray();
+
+      // Format labels in Node.js
+      const formatted = rows.map(r => {
+        const label = `Week ${r._id.week}, ${r._id.year}`;
+        return { ...r, label };
+      });
 
       return res.json({
         window: { start, end, tz },
-        categories: (rows as Array<{ label: string }>).map(r => r.label),
-        series: [{ name: "Total Bookings", data: (rows as Array<{ count: number }>).map(r => r.count) }]
+        categories: formatted.map(r => r.label),
+        series: [{ name: "Total Bookings", data: formatted.map(r => r.count) }]
       });
     } catch (err: any) {
       console.error("weekly-bookings (users) error:", err?.message ?? err);
@@ -123,3 +80,4 @@ export default class WeeklyBookingsController {
     }
   }
 }
+
