@@ -17,65 +17,10 @@ type ByFacilityResp = {
   selector: 'app-kpi-row',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  template: `
-    <section class="kpi-section">
-      <div class="kpi-header">
-        <h2 class="kpi-title">Vendor Analytics Dashboard: Akasa</h2>
-        <p class="kpi-subtitle">Summary of last 8 weeks</p>
-      </div>
-
-      <div class="kpi-wrap">
-        <!-- 1. New Member Signups -->
-        <div class="kpi-card">
-          <div class="kpi-label">New Member Signups</div>
-          <div class="kpi-value">{{ signupsText }}</div>
-        </div>
-
-        <!-- 2. Total Member Bookings -->
-        <div class="kpi-card">
-          <div class="kpi-label">Total Member Bookings</div>
-          <div class="kpi-value">{{ bookingsText }}</div>
-        </div>
-
-        <!-- 3. Total Member Visits -->
-        <div class="kpi-card">
-          <div class="kpi-label">Total Member Visits</div>
-          <div class="kpi-value">{{ visitsText }}</div>
-        </div>
-
-        <!-- 4. Total Sales -->
-        <div class="kpi-card">
-          <div class="kpi-label">Total Sales</div>
-          <div class="kpi-value">{{ salesText }}</div>
-        </div>
-
-        <!-- 5. Total AOV = Sales / Visits -->
-        <div class="kpi-card">
-          <div class="kpi-label">Average Order Value</div>
-          <div class="kpi-value">{{ aovText }}</div>
-        </div>
-
-        <!-- 6. Most Popular Facility -->
-        <div class="kpi-card">
-          <div class="kpi-label">Most Popular Facility</div>
-          <div class="kpi-value">{{ popularFacilityText }}</div>
-        </div>
-
-        <!-- 7. Metric #7 -->
-        <div class="kpi-card">
-          <div class="kpi-label">Metric #7</div>
-          <div class="kpi-value">{{ placeholderAText }}</div>
-        </div>
-
-        <!-- 8. Metric #8 -->
-        <div class="kpi-card">
-          <div class="kpi-label">Metric #8</div>
-          <div class="kpi-value">{{ placeholderBText }}</div>
-        </div>
-      </div>
-    </section>
-  `,
+  templateUrl: './kpi-row.component.html',
+  styleUrls: ['./kpi-row.component.scss']
 })
+
 export class KpiRowComponent implements OnInit {
   private http = inject(HttpClient);
 

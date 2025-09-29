@@ -19,7 +19,8 @@ type FRWeeklyResp = {
 @Component({
   selector: 'app-new-vs-returning-visits',
   standalone: true,
-  template: `<div #container style="width:100%; height:420px;"></div>`
+  templateUrl: './new-vs-returning-visits.component.html',
+  styleUrls: ['./new-vs-returning-visits.component.scss']
 })
 export class NewVsReturningWeeklyVisitComponent implements AfterViewInit, OnDestroy {
   @ViewChild('container', { static: true }) container!: ElementRef<HTMLDivElement>;

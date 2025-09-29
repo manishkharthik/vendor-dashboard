@@ -18,7 +18,8 @@ type ByActualResponse = {
 @Component({
   selector: 'app-aov-by-visit',
   standalone: true,
-  template: `<div #container style="width:100%; height:400px;"></div>`
+  templateUrl: './aov-by-visit.component.html',
+  styleUrls: ['./aov-by-visit.component.scss']
 })
 
 export class AovByVisitComponent implements AfterViewInit, OnDestroy {

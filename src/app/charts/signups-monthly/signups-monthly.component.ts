@@ -7,7 +7,8 @@ import { ChartDataService, ChartResponse } from '../../core/chart-data.service';
 @Component({
   selector: 'app-signups-monthly',
   standalone: true,
-  template: `<div #container style="width:100%; height:400px;"></div>`
+  templateUrl: './signups-monthly.component.html',
+  styleUrls: ['./signups-monthly.component.scss']
 })
 export class SignupsMonthlyComponent implements AfterViewInit, OnDestroy {
   @ViewChild('container', { static: true }) container!: ElementRef<HTMLDivElement>;
