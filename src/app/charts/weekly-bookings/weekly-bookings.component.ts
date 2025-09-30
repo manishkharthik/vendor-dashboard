@@ -13,7 +13,8 @@ type WeeklyResponse = {
 @Component({
   selector: 'app-weekly-bookings',
   standalone: true,
-  template: `<div #container style="width:100%; height:400px;"></div>`
+  templateUrl: './weekly-bookings.component.html',
+  styleUrls: ['./weekly-bookings.component.scss']
 })
 
 export class WeeklyBookingsComponent implements AfterViewInit, OnDestroy {

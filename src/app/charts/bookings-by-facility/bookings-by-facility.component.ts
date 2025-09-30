@@ -12,7 +12,8 @@ type FacilityVolumeResponse = {
 @Component({
   selector: 'app-bookings-by-facility',
   standalone: true,
-  template: `<div #container style="width:100%; height:420px;"></div>`
+  templateUrl: './bookings-by-facility.component.html',
+  styleUrls: ['./bookings-by-facility.component.scss']
 })
 export class BookingsByFacilityComponent implements AfterViewInit, OnDestroy {
   @Input() vendorId = '67f773acc9504931fcc411ec';

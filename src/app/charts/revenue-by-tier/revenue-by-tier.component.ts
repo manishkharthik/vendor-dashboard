@@ -12,7 +12,8 @@ type TierRevenueResponse = {
 @Component({
   selector: 'app-revenue-by-tier',
   standalone: true,
-  template: `<div #container style="width:100%; height:400px;"></div>`
+  templateUrl: './revenue-by-tier.component.html',
+  styleUrls: ['./revenue-by-tier.component.scss']
 })
 export class RevenueByTierComponent implements AfterViewInit, OnDestroy {
   @Input() vendorId: string = '67f773acc9504931fcc411ec'; 

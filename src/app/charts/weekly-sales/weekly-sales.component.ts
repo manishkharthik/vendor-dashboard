@@ -7,7 +7,8 @@ import { ChartDataService, ChartResponse } from '../../core/chart-data.service';
 @Component({
   selector: 'app-weekly-sales',
   standalone: true,
-  template: `<div #container style="width:100%; height:400px;"></div>`
+  templateUrl: './weekly-sales.component.html',
+  styleUrls: ['./weekly-sales.component.scss']
 })
 export class WeeklySalesComponent implements AfterViewInit, OnDestroy {
   @ViewChild('container', { static: true }) container!: ElementRef<HTMLDivElement>;
